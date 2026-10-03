@@ -75,7 +75,7 @@
   .shop {
     position: fixed; left: 50%; transform: translateX(-50%);
     bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-    display: flex; gap: 8px; width: max-content; max-width: calc(100% - 32px);
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; max-width: calc(100% - 32px);
   }
   .shop-btn {
     display: grid; grid-template-columns: auto auto; grid-template-areas: "name key" "cost cost";
@@ -203,6 +203,8 @@
   <button class="shop-btn" id="buy-meal" type="button"><span class="shop-name">Free meal</span><kbd>1</kbd><span class="shop-cost"><span class="coin"></span><span id="cost-meal">12</span></span></button>
   <button class="shop-btn" id="buy-swarm" type="button"><span class="shop-name" id="name-swarm">Fly swarm</span><kbd>2</kbd><span class="shop-cost"><span class="coin"></span><span id="cost-swarm">35</span></span></button>
   <button class="shop-btn" id="buy-heal" type="button"><span class="shop-name">Regrow</span><kbd>3</kbd><span class="shop-cost"><span class="coin"></span><span id="cost-heal">25</span></span></button>
+  <button class="shop-btn" id="buy-pitcher" type="button"><span class="shop-name" id="name-pitcher">Pitcher plant 0/6</span><kbd>4</kbd><span class="shop-cost"><span class="coin"></span><span id="cost-pitcher">60</span></span></button>
+  <button class="shop-btn" id="buy-head" type="button"><span class="shop-name" id="name-head">Extra head 0/4</span><kbd>5</kbd><span class="shop-cost"><span class="coin"></span><span id="cost-head">150</span></span></button>
 </div>
 
 <div id="pops"></div>
@@ -263,6 +265,8 @@
     meal: { cost: (s) => 12 * (1 + s) },
     swarm: { cost: (s) => 35 * (1 + s) },
     heal: { cost: (s) => 25 * (1 + s) },
+    pitcher: { cost: (s) => Math.round(60 * (1 + s) * (1 + .5 * g.pitchers.length)), max: 6, count: () => g.pitchers.length, label: 'Pitcher plant' },
+    head: { cost: (s) => 150 * (1 + s) * (1 + g.helpers.length), max: 4, count: () => g.helpers.length, label: 'Extra head' },
   };
 
   const sOf = (stage) => Math.pow(1.55, stage);
@@ -430,7 +434,6 @@
   const stalk = new T.Mesh(new T.BufferGeometry(), matStalk); stalk.castShadow = true; scene.add(stalk);
   let stalkCurve = null;
 
-  const head = new T.Group(); scene.add(head);
   function makeLobe(stagger) {
     const lobe = new T.Group();
     const outer = part(GEO.dome, matLobe, .2, .17, .25, 0, 0, .25, lobe);
@@ -447,10 +450,42 @@
     outer.receiveShadow = true;
     return lobe;
   }
-  const hingeU = new T.Group(); hingeU.add(makeLobe(0));
-  const hingeL = new T.Group(); const flip = new T.Group(); flip.rotation.z = Math.PI; flip.add(makeLobe(.5)); hingeL.add(flip);
-  head.add(hingeU, hingeL);
-  part(GEO.sphere, matStalk, .06, .06, .06, 0, 0, 0, head);
+  function makeTrap() {
+    const grp = new T.Group();
+    const hu = new T.Group(); hu.add(makeLobe(0));
+    const hl = new T.Group(); const fl = new T.Group(); fl.rotation.z = Math.PI; fl.add(makeLobe(.5)); hl.add(fl);
+    grp.add(hu, hl);
+    part(GEO.sphere, matStalk, .06, .06, .06, 0, 0, 0, grp);
+    return { grp, hu, hl };
+  }
+  const mainTrap = makeTrap();
+  const head = mainTrap.grp, hingeU = mainTrap.hu, hingeL = mainTrap.hl;
+  scene.add(head);
+
+  // Pitcher plants: bought from the shop, they grow around the Gulper and catch prey on their own
+  const pitcherTex = canvasTex(64, 128, (x, w, h) => {
+    const gr = x.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, '#c8324a'); gr.addColorStop(.45, '#a8b84a'); gr.addColorStop(1, '#5f8f34');
+    x.fillStyle = gr; x.fillRect(0, 0, w, h);
+    x.strokeStyle = 'rgba(140,20,40,.7)'; x.lineWidth = 2;
+    for (let i = 0; i < 9; i++) {
+      let px = i * 7 + 3; x.beginPath(); x.moveTo(px, 0);
+      for (let y = 0; y <= h; y += 8) { px += rand(-3, 3); x.lineTo(px, y); }
+      x.stroke();
+    }
+  });
+  const pitcherGeo = new T.CylinderGeometry(.2, .1, 1, 16, 1, true); pitcherGeo.translate(0, .5, 0);
+  const pitcherMat = new T.MeshStandardMaterial({ map: pitcherTex, roughness: .5, side: T.DoubleSide });
+  const lipGeo = new T.TorusGeometry(.2, .035, 8, 20);
+  function buildPitcher() {
+    const root = new T.Group();
+    const tube = new T.Mesh(pitcherGeo, pitcherMat); tube.castShadow = true; root.add(tube);
+    const lip = new T.Mesh(lipGeo, M('#c8324a')); lip.rotation.x = Math.PI / 2; lip.position.y = 1; root.add(lip);
+    part(GEO.cyl, M('#3a1018', { roughness: .2 }), .19, .01, .19, 0, .85, 0, root);
+    const lid = part(GEO.sphere, M('#b03048'), .2, .02, .18, 0, 1.13, -.26, root); lid.rotation.x = -1.05;
+    part(GEO.sphere, matLeaf, .08, .02, .3, 0, .04, .3, root);
+    return root;
+  }
 
   const zoneRing = new T.Sprite(new T.SpriteMaterial({ map: ringTex, color: '#d6e7dd', transparent: true, opacity: .22, depthWrite: false }));
   const lockRing = new T.Sprite(new T.SpriteMaterial({ map: ringTex, color: '#f4c44f', transparent: true, opacity: .95, depthTest: false, depthWrite: false }));
@@ -707,12 +742,14 @@
     for (const p of g.prey) scene.remove(p.grp);
     for (const s of g.shots) scene.remove(s.m);
     for (const p of g.parts) scene.remove(p.m);
+    for (const h of g.helpers) { scene.remove(h.trap.grp); scene.remove(h.stalk); h.stalk.geometry.dispose(); }
+    for (const pt of g.pitchers) scene.remove(pt.grp);
   }
   function newGame() {
     clearWorld();
     g = {
       mass: 0, coins: 0, earned: 0, stage: 0, food: 70, hp: 100,
-      prey: [], shots: [], parts: [],
+      prey: [], shots: [], parts: [], helpers: [], pitchers: [],
       spawnT: .4, combo: 0, lastCatch: -9, time: 0, shake: 0, hitFlash: 0,
       head: new V3(0, 1.4, .4), dir: new V3(0, .2, 1).normalize(),
       jaw: 'open', open: 1, jawT: 0, sCur: 1, sTarget: 1, sway: 0,
@@ -836,7 +873,7 @@
   // ---------- Combat ----------
   function plantTarget() {
     const r = Math.random();
-    if (r < .45) return g.head.clone();
+    if (r < .45) return pick([g.head].concat(g.helpers.map((h) => h.pos))).clone();
     if (r < .85 && stalkCurve) return stalkCurve.getPoint(rand(.3, .8));
     return new V3(rand(-.3, .3) * g.sCur, .2 * g.sCur, rand(-.3, .3) * g.sCur);
   }
@@ -867,44 +904,53 @@
     if (g.jaw !== 'open' || g.open < .6) return;
     g.jaw = 'snapping'; g.jawT = 0; sfx.snap();
   }
+  // Adds eaten prey to the totals. Helpers (extra heads, pitchers) don't use or break the combo.
+  function digest(items, m, helper) {
+    const mult = helper ? 1 : g.combo;
+    let gained = 0, coins = 0, chew = 0, humans = 0, crunchy = false;
+    for (const p of items) {
+      gained += p.def.mg * mult;
+      g.food = Math.min(100, g.food + p.def.food);
+      g.hp = Math.min(100, g.hp + p.def.food * .2);
+      coins += Math.max(1, Math.round(p.def.food / 3 * (1 + g.stage * .35))) * mult;
+      chew = Math.max(chew, clamp(p.def.food / 60, .2, 1.3));
+      if (p.def.danger) crunchy = true;
+      if (p.def.human) humans++;
+    }
+    g.mass += gained; g.coins += coins; g.earned += coins;
+    g.humansEaten += humans;
+    if (helper) pop(m, '+' + fmt(gained) + ' · +' + coins + ' coins', 'dim');
+    else {
+      pop(m, '+' + fmt(gained) + (mult > 1 ? '  ×' + mult : ''), mult > 1 ? 'gold big' : '');
+      setTimeout(() => state === 'playing' && pop(m.clone().add(new V3(0, -catchR(), 0)), '+' + coins + ' coins', 'gold'), 160);
+    }
+    burst(m, crunchy ? '#9a9f9b' : '#9fd44c', 8 + items.length * 4, .03 * g.sCur, 2.2 * g.sCur);
+    crunchy ? sfx.crunch() : sfx.chomp();
+    checkStage();
+    checkWar();
+    return chew;
+  }
+
   function resolveSnap() {
     const m = mouthPos(), cr = catchR();
-    let caught = g.prey.filter((p) => !p.dead && centerOf(p).distanceTo(m) < cr + p.r * .6);
+    const caught = g.prey.filter((p) => !p.dead && centerOf(p).distanceTo(m) < cr + p.r * .6);
     if (!caught.length) { g.jaw = 'cooldown'; g.jawT = .28; g.combo = 0; return; }
-    const tooBig = caught.filter((p) => verdict(p) === 'big');
-    if (tooBig.length) {
+    if (caught.some((p) => verdict(p) === 'big')) {
       sfx.clank(); g.shake = .3; g.combo = 0; g.jaw = 'stunned'; g.jawT = 1;
       pop(m, 'Too big to swallow yet', 'dim big');
       return;
     }
-    let bad = null, chew = 0, gained = 0, coins = 0, goods = 0, humans = 0, crunchy = false;
+    let bad = null;
+    const goods = [];
     for (const p of caught) {
       removePrey(p);
-      const v = verdict(p);
-      if (v === 'bad') { if (bad !== 'wasp') bad = p.type; continue; }
-      goods++;
-      if (p.def.danger) crunchy = true;
-      if (p.def.human) humans++;
+      if (verdict(p) === 'bad') { if (bad !== 'wasp') bad = p.type; } else goods.push(p);
     }
-    if (goods) {
+    let chew = 0;
+    if (goods.length) {
       g.combo = g.time - g.lastCatch < 2.5 ? Math.min(5, g.combo + 1) : 1;
       g.lastCatch = g.time;
-      for (const p of caught) {
-        if (verdict(p) === 'bad') continue;
-        gained += p.def.mg * g.combo;
-        g.food = Math.min(100, g.food + p.def.food);
-        g.hp = Math.min(100, g.hp + p.def.food * .2);
-        coins += Math.max(1, Math.round(p.def.food / 3 * (1 + g.stage * .35))) * g.combo;
-        chew = Math.max(chew, clamp(p.def.food / 60, .2, 1.3));
-      }
-      g.mass += gained; g.coins += coins; g.earned += coins;
-      g.humansEaten += humans;
-      pop(m, '+' + fmt(gained) + (g.combo > 1 ? '  ×' + g.combo : ''), g.combo > 1 ? 'gold big' : (g.combo > 2 ? 'big' : ''));
-      setTimeout(() => state === 'playing' && pop(m.clone().add(new V3(0, -catchR(), 0)), '+' + coins + ' coins', 'gold'), 160);
-      burst(m, crunchy ? '#9a9f9b' : '#9fd44c', 10 + goods * 4, .03 * g.sCur, 2.2 * g.sCur);
-      crunchy ? sfx.crunch() : sfx.chomp();
-      checkStage();
-      checkWar();
+      chew = digest(goods, m, false);
     }
     if (bad === 'wasp') {
       burst(m, '#f4c44f', 12, .025 * g.sCur, 2 * g.sCur);
@@ -917,6 +963,101 @@
       pop(m, 'Pebble! Jaws stunned', 'dim big');
     } else if (g.jaw === 'snapping') {
       g.jaw = 'chewing'; g.jawT = chew;
+    }
+  }
+
+  // ---------- Extra heads and pitcher plants ----------
+  function addHelper() {
+    const trap = makeTrap(); scene.add(trap.grp);
+    const st = new T.Mesh(new T.BufferGeometry(), matStalk); st.castShadow = true; scene.add(st);
+    const ang = g.camAng + Math.PI * .5 + g.helpers.length * 2.4;
+    const off = new V3(Math.sin(ang) * .2, 0, Math.cos(ang) * .2);
+    const sc = g.sCur;
+    g.helpers.push({
+      trap, stalk: st, ang, off, curve: null, target: null,
+      pos: new V3(off.x * sc, .4 * sc, off.z * sc), dir: new V3(Math.sin(ang), .4, Math.cos(ang)).normalize(),
+      jaw: 'open', open: 1, jawT: 0,
+    });
+  }
+  function addPitcher() {
+    const n = g.pitchers.length;
+    const grp = buildPitcher(); scene.add(grp);
+    const pt = { grp, ang: g.camAng + .5 + n * (Math.PI * 2 / 6), dist: rand(1.2, 1.5), sz: rand(.85, 1.05), cool: 0, born: g.time };
+    g.pitchers.push(pt);
+    return pt;
+  }
+  function steerHead(h, base, aim, reach, Lh, dt, speed) {
+    const want = aim.clone().sub(base).normalize();
+    const v = aim.clone().addScaledVector(want, -Lh * .55).sub(base);
+    const len = v.length();
+    if (len > reach) v.multiplyScalar(reach / len);
+    if (len < .5 * g.sCur) v.setLength(.5 * g.sCur);
+    const ht = base.clone().add(v);
+    ht.y = Math.max(.28 * g.sCur, ht.y);
+    h.pos.lerp(ht, Math.min(1, dt * speed));
+    const d = aim.clone().sub(h.pos);
+    if (d.length() > .05 * g.sCur) {
+      d.normalize(); d.y = clamp(d.y, -.85, .9); d.normalize();
+      h.dir.lerp(d, Math.min(1, dt * 7)).normalize();
+    }
+  }
+  // Extra heads hunt by themselves: each picks the nearest edible prey nobody else is after
+  function updateHelpers(dt, live) {
+    const s = g.sCur, Rr = R() * .85, Lh = L() * .8, cr = catchR() * .85;
+    const claimed = new Set(g.helpers.map((h) => h.target).filter(Boolean));
+    for (const h of g.helpers) {
+      const base = new V3(h.off.x * s, .15 * s, h.off.z * s);
+      if (h.target && (h.target.dead || verdict(h.target) !== 'ok' || centerOf(h.target).distanceTo(base) > Rr * 1.2)) {
+        claimed.delete(h.target); h.target = null;
+      }
+      if (!h.target && live && h.jaw === 'open') {
+        let bestP = null, bd = Rr;
+        for (const p of g.prey) {
+          if (p.dead || claimed.has(p) || p === g.aimTarget || verdict(p) !== 'ok') continue;
+          const d = centerOf(p).distanceTo(base);
+          if (d < bd) { bd = d; bestP = p; }
+        }
+        if (bestP) { h.target = bestP; claimed.add(bestP); }
+      }
+      const t = g.time;
+      const aim = h.target ? centerOf(h.target) : base.clone().add(new V3(
+        Math.sin(h.ang + t * .3) * .5 * Rr, .55 * Rr + Math.sin(t * .8 + h.ang) * .1 * Rr, Math.cos(h.ang + t * .3) * .5 * Rr));
+      steerHead(h, base, aim, Rr, Lh, dt, 5.5);
+      const m = h.pos.clone().addScaledVector(h.dir, Lh * .55);
+      if (h.jaw === 'open' && h.target && h.open > .8 && centerOf(h.target).distanceTo(m) < cr + h.target.r * .5) { h.jaw = 'snapping'; h.jawT = 0; }
+      switch (h.jaw) {
+        case 'open': h.open = Math.min(1, h.open + dt * 5); break;
+        case 'snapping':
+          h.jawT += dt; h.open = Math.max(0, 1 - h.jawT / .09);
+          if (h.jawT >= .09) {
+            const caught = live ? g.prey.filter((p) => !p.dead && verdict(p) === 'ok' && centerOf(p).distanceTo(m) < cr + p.r * .6) : [];
+            h.target = null;
+            if (caught.length) { caught.forEach(removePrey); h.jaw = 'chewing'; h.jawT = digest(caught, m, true) + .3; }
+            else { h.jaw = 'cooldown'; h.jawT = .4; }
+          }
+          break;
+        default:
+          h.jawT -= dt; h.open = 0;
+          if (h.jawT <= 0) h.jaw = 'open';
+      }
+    }
+  }
+  // Pitchers lure flying prey with nectar and swallow anything edible that gets close
+  function updatePitchers(dt, live) {
+    if (!live) return;
+    const s = g.sCur;
+    for (const pt of g.pitchers) {
+      pt.cool -= dt;
+      const mouth = new V3(Math.sin(pt.ang) * pt.dist * s, pt.sz * s * .9, Math.cos(pt.ang) * pt.dist * s);
+      const lure = 2.4 * s, grab = 1.0 * s;
+      let bestP = null, bd = Infinity;
+      for (const p of g.prey) {
+        if (p.dead || verdict(p) !== 'ok') continue;
+        const d = centerOf(p).distanceTo(mouth);
+        if (d < lure && p.def.kind === 'fly' && p.base) p.base.lerp(mouth, dt * .5);
+        if (d < grab + p.r * .5 && d < bd) { bd = d; bestP = p; }
+      }
+      if (bestP && pt.cool <= 0) { removePrey(bestP); digest([bestP], mouth, true); pt.cool = 1.4; }
     }
   }
 
@@ -945,8 +1086,10 @@
   // ---------- Shop ----------
   function buy(id) {
     if (state !== 'playing') return;
-    const cost = SHOP[id].cost(g.stage);
+    const it = SHOP[id];
     const where = mouthPos();
+    if (it.max && it.count() >= it.max) { pop(where, 'You already have ' + it.max + ' — that\'s the most', 'dim'); return; }
+    const cost = it.cost(g.stage);
     if (g.coins < cost) { pop(where, 'Need ' + (cost - g.coins) + ' more coins', 'dim'); return; }
     g.coins -= cost; sfx.coin();
     if (id === 'meal') {
@@ -969,6 +1112,14 @@
       g.hp = Math.min(100, g.hp + 50);
       burst(g.head, '#e3f1b6', 14, .03 * g.sCur, 1.6 * g.sCur);
       pop(where, 'Regrown · +50 health', 'gold big');
+    } else if (id === 'pitcher') {
+      const pt = addPitcher(), s = g.sCur;
+      pop(new V3(Math.sin(pt.ang) * pt.dist * s, s, Math.cos(pt.ang) * pt.dist * s), 'A pitcher plant sprouts', 'gold big');
+      sfx.grow();
+    } else if (id === 'head') {
+      addHelper();
+      pop(where, 'A new head sprouts', 'gold big');
+      sfx.grow();
     }
   }
 
@@ -1166,6 +1317,8 @@
     } else g.camAng += dt * .08;
 
     updatePlant(dt, live);
+    updateHelpers(dt, live);
+    updatePitchers(dt, live);
 
     if (live) {
       g.food -= (2.4 + g.stage * .5) * (1 + g.time / 400) * dt;
@@ -1199,6 +1352,24 @@
     head.lookAt(g.head.clone().add(g.dir));
     const op = g.open * .75 + (g.jaw === 'chewing' ? Math.abs(Math.sin(g.time * 16)) * .08 : 0);
     hingeU.rotation.x = -op; hingeL.rotation.x = op;
+
+    for (const h of g.helpers) {
+      h.trap.grp.position.copy(h.pos); h.trap.grp.scale.setScalar(s * .8);
+      h.trap.grp.lookAt(h.pos.clone().add(h.dir));
+      const hop = h.open * .75 + (h.jaw === 'chewing' ? Math.abs(Math.sin(g.time * 16 + h.ang)) * .08 : 0);
+      h.trap.hu.rotation.x = -hop; h.trap.hl.rotation.x = hop;
+      const b0 = new V3(h.off.x * s, .1 * s, h.off.z * s);
+      const e = h.pos.clone().addScaledVector(h.dir, -.04 * s);
+      h.curve = new T.CubicBezierCurve3(b0, new V3(b0.x * 2 + g.sway * .7, h.pos.y * .45, b0.z * 2), e.clone().addScaledVector(h.dir, -L() * .9), e);
+      h.stalk.geometry.dispose();
+      h.stalk.geometry = new T.TubeGeometry(h.curve, 20, .05 * s, 7, false);
+    }
+    for (const pt of g.pitchers) {
+      const grow = Math.min(1, (g.time - pt.born) * 1.5);
+      pt.grp.position.set(Math.sin(pt.ang) * pt.dist * s, 0, Math.cos(pt.ang) * pt.dist * s);
+      pt.grp.scale.setScalar(pt.sz * s * .9 * grow + .001);
+      pt.grp.rotation.y = pt.ang;
+    }
 
     const p0 = new V3(0, .1 * s, 0);
     const p3 = g.head.clone().addScaledVector(g.dir, -.04 * s);
@@ -1252,6 +1423,8 @@
     meal: { btn: $('buy-meal'), cost: $('cost-meal') },
     swarm: { btn: $('buy-swarm'), cost: $('cost-swarm'), name: $('name-swarm') },
     heal: { btn: $('buy-heal'), cost: $('cost-heal') },
+    pitcher: { btn: $('buy-pitcher'), cost: $('cost-pitcher'), name: $('name-pitcher') },
+    head: { btn: $('buy-head'), cost: $('cost-head'), name: $('name-head') },
   };
   const last = {};
   function setIf(key, val, fn) { if (last[key] !== val) { last[key] = val; fn(val); } }
@@ -1267,9 +1440,10 @@
     setIf('coins', g.coins, (c) => { hud.coins.textContent = c.toLocaleString('en-US'); });
     setIf('war', g.war, (w) => { hud.war.hidden = !w; });
     for (const id of Object.keys(SHOP)) {
-      const cost = SHOP[id].cost(g.stage);
-      setIf('cost-' + id, cost, (c) => { shopEls[id].cost.textContent = c.toLocaleString('en-US'); });
-      setIf('can-' + id, g.coins >= cost, (ok) => { shopEls[id].btn.classList.toggle('cant', !ok); shopEls[id].btn.setAttribute('aria-disabled', String(!ok)); });
+      const it = SHOP[id], cost = it.cost(g.stage), full = !!it.max && it.count() >= it.max;
+      setIf('cost-' + id, full ? 'Max' : cost, (c) => { shopEls[id].cost.textContent = typeof c === 'number' ? c.toLocaleString('en-US') : c; });
+      setIf('can-' + id, !full && g.coins >= cost, (ok) => { shopEls[id].btn.classList.toggle('cant', !ok); shopEls[id].btn.setAttribute('aria-disabled', String(!ok)); });
+      if (it.max) setIf('count-' + id, it.count(), (n) => { shopEls[id].name.textContent = it.label + ' ' + n + '/' + it.max; });
     }
   }
 
@@ -1291,7 +1465,7 @@
       <dl class="controls">
         <dt>Aim</dt><dd>Mouse, drag a finger, or arrow keys. The trap locks onto prey near your cursor.</dd>
         <dt>Snap</dt><dd>Click, tap, or Space</dd>
-        <dt>Shop</dt><dd>Buttons along the bottom, or keys 1, 2, 3</dd>
+        <dt>Shop</dt><dd>Buttons along the bottom, or keys 1 to 5. Coins buy free meals, swarms of prey, healing, pitcher plants that catch food for you, and extra heads that hunt on their own.</dd>
         <dt>Camera</dt><dd>Q and E turn around the plant</dd>
       </dl>
       <ul class="ladder">
@@ -1369,6 +1543,8 @@
     if (key === '1') return buy('meal');
     if (key === '2') return buy('swarm');
     if (key === '3') return buy('heal');
+    if (key === '4') return buy('pitcher');
+    if (key === '5') return buy('head');
     if (key.startsWith('Arrow') && state === 'playing') e.preventDefault();
     keys[key] = true;
   });
