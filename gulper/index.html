@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&family=Rubik+Wet+Paint&display=swap">
 <style>
-  /* Full-bleed night bog on canvas; HUD pinned to the top corners; cards float over the live scene. */
+  /* Full-bleed 3D bog; HUD pinned to top corners, shop bar along the bottom, cards float over the live scene. */
   :root {
     --bog: #0c181a;
     --bog-2: #15302f;
@@ -43,33 +43,95 @@
     display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
     padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 0;
     pointer-events: none;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, .6);
   }
   .hud-block { display: grid; gap: 4px; min-width: 0; }
   .hud-right { justify-items: end; text-align: right; }
   .stage-name { font-family: var(--font-display); font-size: 1.6rem; line-height: 1; color: var(--chloro); text-wrap: balance; }
-  .label { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--mist-dim); }
+  .label { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--mist-dim); }
   .data { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
   .mass { font-family: var(--font-data); font-weight: 700; font-size: 1.5rem; line-height: 1; color: var(--mist); font-variant-numeric: tabular-nums; }
-  .meter { width: min(42vw, 200px); height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--mist) 12%, transparent); overflow: hidden; margin-top: 6px; }
+  .meters { display: grid; gap: 6px; margin-top: 6px; }
+  .meter-row { display: grid; grid-template-columns: 4.6rem 1fr; align-items: center; gap: 8px; }
+  .meter { width: min(34vw, 180px); height: 9px; border-radius: 999px; background: color-mix(in srgb, var(--mist) 14%, transparent); overflow: hidden; }
   .meter-fill { height: 100%; width: 70%; background: var(--chloro); border-radius: inherit; transition: background-color .3s; }
+  .meter-fill.hp { background: var(--cilia); }
   .meter-fill.low { background: var(--maw); }
+  .war-tag {
+    justify-self: start; margin-top: 4px; font-size: .7rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--bog); background: var(--maw); border-radius: 4px; padding: 3px 8px; text-shadow: none;
+  }
+  .coins { display: flex; align-items: center; gap: 6px; font-size: 1.15rem; font-weight: 700; color: var(--pollen); margin-top: 4px; }
+  .coin { width: .8em; height: .8em; border-radius: 50%; background: var(--pollen); box-shadow: inset -2px -2px 0 rgba(0,0,0,.25); }
   .hud-btns { display: flex; gap: 6px; margin-top: 6px; pointer-events: auto; }
   .chip-btn {
     font: 600 .75rem var(--font-body); color: var(--mist);
     background: color-mix(in srgb, var(--bog-2) 80%, transparent);
-    border: 1px solid var(--moss); border-radius: 999px; padding: 6px 12px; cursor: pointer;
+    border: 1px solid var(--moss); border-radius: 999px; padding: 6px 12px; cursor: pointer; white-space: nowrap;
   }
   .chip-btn:hover { border-color: var(--chloro); }
   button:focus-visible { outline: 2px solid var(--pollen); outline-offset: 2px; }
 
+  .shop {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    display: flex; gap: 8px; width: max-content; max-width: calc(100% - 32px);
+  }
+  .shop-btn {
+    display: grid; grid-template-columns: auto auto; grid-template-areas: "name key" "cost cost";
+    align-items: center; gap: 2px 10px; text-align: left; min-width: 0;
+    font: 600 .85rem var(--font-body); color: var(--mist);
+    background: color-mix(in srgb, var(--bog-2) 88%, transparent);
+    border: 1px solid var(--moss); border-radius: 14px; padding: 8px 12px; cursor: pointer;
+  }
+  .shop-btn:hover:not(.cant) { border-color: var(--pollen); }
+  .shop-btn .shop-name { grid-area: name; white-space: nowrap; }
+  .shop-btn kbd { grid-area: key; justify-self: end; font: 500 .7rem var(--font-data); color: var(--mist-dim); border: 1px solid var(--moss); border-radius: 4px; padding: 0 4px; }
+  .shop-btn .shop-cost { grid-area: cost; display: flex; align-items: center; gap: 5px; font-family: var(--font-data); font-size: .8rem; color: var(--pollen); }
+  .shop-btn .shop-cost .coin { width: .7em; height: .7em; }
+  .shop-btn.cant { opacity: .5; cursor: not-allowed; }
+  .shop-btn.cant .shop-cost { color: var(--mist-dim); }
+
+  #pops { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .pop {
+    position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
+    font: 700 15px var(--font-data); color: var(--chloro);
+    text-shadow: 0 0 4px var(--bog), 0 2px 0 var(--bog);
+    animation: rise 1.2s ease-out forwards;
+  }
+  .pop.big { font-size: 19px; }
+  .pop.gold { color: var(--pollen); }
+  .pop.bad { color: var(--maw); }
+  .pop.dim { color: var(--mist); }
+  @keyframes rise { from { opacity: 1; margin-top: 0; } 70% { opacity: 1; } to { opacity: 0; margin-top: -46px; } }
+
+  .banner {
+    position: fixed; left: 0; right: 0; top: 24%; display: grid; justify-items: center; gap: 4px;
+    padding: 0 16px; text-align: center; pointer-events: none;
+    animation: bannerIn 2.6s ease-out forwards;
+  }
+  .banner-eyebrow { font-size: .78rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; color: var(--pollen); }
+  .banner-text {
+    font-family: var(--font-display); font-size: clamp(2.4rem, 10vw, 4.4rem); line-height: 1; color: var(--chloro); text-wrap: balance;
+    text-shadow: 0 4px 0 var(--bog), 0 0 24px rgba(0,0,0,.6);
+  }
+  .banner.war .banner-text { color: var(--maw); }
+  .banner-sub { font-weight: 600; color: var(--mist); text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+  @keyframes bannerIn {
+    0% { opacity: 0; transform: scale(.85); }
+    12% { opacity: 1; transform: scale(1); }
+    78% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
   .overlay {
     position: fixed; inset: 0; display: grid; place-items: center;
     padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
-    background: color-mix(in srgb, var(--bog) 62%, transparent);
+    background: color-mix(in srgb, var(--bog) 55%, transparent);
     overflow-y: auto;
   }
   .card {
-    width: 100%; max-width: 30rem;
+    width: 100%; max-width: 31rem;
     background: color-mix(in srgb, var(--bog-2) 94%, transparent);
     border: 1px solid var(--moss); border-radius: 20px;
     padding: 24px; display: grid; gap: 14px;
@@ -83,15 +145,14 @@
   .card h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 2.4rem; line-height: 1; color: var(--chloro); text-wrap: balance; }
   .card p { margin: 0; line-height: 1.5; max-width: 62ch; }
   .eyebrow { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--pollen); font-weight: 600; }
-  .controls { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: .9rem; }
+  .controls { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: .9rem; margin: 0; }
   .controls dt { color: var(--mist-dim); }
   .controls dd { margin: 0; }
-  .menu { display: flex; flex-wrap: wrap; gap: 6px; font-size: .82rem; }
-  .menu span { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--moss); }
-  .menu .eat { color: var(--chloro); }
-  .menu .avoid { color: var(--maw); border-color: color-mix(in srgb, var(--maw) 50%, transparent); }
+  .ladder { display: grid; gap: 6px; font-size: .86rem; margin: 0; padding: 0; list-style: none; }
+  .ladder li { display: grid; grid-template-columns: 4.2rem 1fr; gap: 10px; }
+  .ladder b { font-family: var(--font-data); font-weight: 500; color: var(--pollen); font-variant-numeric: tabular-nums; }
   .fact { font-size: .85rem; color: var(--mist-dim); border-top: 1px solid var(--moss); padding-top: 12px; }
-  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .stats div { display: grid; gap: 2px; }
   .stats strong { font-family: var(--font-data); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
   .go {
@@ -101,26 +162,36 @@
   }
   .go:hover { filter: brightness(1.08); }
   .go:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--moss); }
-  @media (max-width: 420px) {
-    .stage-name { font-size: 1.25rem; }
-    .mass { font-size: 1.2rem; }
+  @media (max-width: 520px) {
+    .stage-name { font-size: 1.2rem; }
+    .mass { font-size: 1.15rem; }
     .card { padding: 20px; }
+    .shop { gap: 6px; }
+    .shop-btn { padding: 6px 9px; font-size: .75rem; grid-template-columns: auto; grid-template-areas: "name" "cost"; }
+    .shop-btn kbd { display: none; }
+    .meter-row { grid-template-columns: 3.8rem 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pop, .banner { animation-duration: .01s; animation-delay: 0s; }
+    .banner { animation: none; }
   }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Gulper game area"></canvas>
-
 <div class="hud">
   <div class="hud-block">
     <div class="stage-name" id="stageName">Seedling</div>
     <div class="label">Trap span <span class="data" id="span">1 cm</span></div>
-    <div class="meter" role="meter" aria-label="Fullness" aria-valuemin="0" aria-valuemax="100" id="meter"><div class="meter-fill" id="fullness"></div></div>
-    <div class="label">Fullness</div>
+    <div class="meters">
+      <div class="meter-row"><span class="label">Fullness</span><div class="meter" role="meter" aria-label="Fullness" aria-valuemin="0" aria-valuemax="100" id="foodMeter"><div class="meter-fill" id="fullness"></div></div></div>
+      <div class="meter-row"><span class="label">Health</span><div class="meter" role="meter" aria-label="Health" aria-valuemin="0" aria-valuemax="100" id="hpMeter"><div class="meter-fill hp" id="health"></div></div></div>
+    </div>
+    <div class="war-tag" id="warTag" hidden>At war with humans</div>
   </div>
   <div class="hud-block hud-right">
     <div class="mass" id="mass">0 mg</div>
     <div class="label">Digested</div>
+    <div class="coins" aria-label="Coins"><span class="coin"></span><span class="data" id="coins">0</span></div>
     <div class="hud-btns">
       <button class="chip-btn" id="muteBtn" type="button">Sound on</button>
       <button class="chip-btn" id="pauseBtn" type="button">Pause</button>
@@ -128,228 +199,723 @@
   </div>
 </div>
 
-<div class="overlay" id="overlay"><div class="card" id="card"></div></div>
+<div class="shop" id="shop" hidden>
+  <button class="shop-btn" id="buy-meal" type="button"><span class="shop-name">Free meal</span><kbd>1</kbd><span class="shop-cost"><span class="coin"></span><span id="cost-meal">12</span></span></button>
+  <button class="shop-btn" id="buy-swarm" type="button"><span class="shop-name" id="name-swarm">Fly swarm</span><kbd>2</kbd><span class="shop-cost"><span class="coin"></span><span id="cost-swarm">35</span></span></button>
+  <button class="shop-btn" id="buy-heal" type="button"><span class="shop-name">Regrow</span><kbd>3</kbd><span class="shop-cost"><span class="coin"></span><span id="cost-heal">25</span></span></button>
+</div>
 
+<div id="pops"></div>
+<div class="banner" id="banner" hidden><div class="banner-eyebrow" id="bannerEyebrow"></div><div class="banner-text" id="bannerText"></div><div class="banner-sub" id="bannerSub"></div></div>
+<div class="overlay" id="overlay"><div class="card" id="card"><p>Loading the bog…</p></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const cv = $('game');
-  const ctx = cv.getContext('2d');
-  const css = getComputedStyle(document.documentElement);
-  const tok = (n) => css.getPropertyValue(n).trim();
-  const C = {
-    bog: tok('--bog'), bog2: tok('--bog-2'), moss: tok('--moss'), chloro: tok('--chloro'),
-    cilia: tok('--cilia'), maw: tok('--maw'), pollen: tok('--pollen'), mist: tok('--mist'),
-  };
-  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function fail(msg) {
+    $('card').innerHTML = '<div class="eyebrow">Can\'t start</div><h2>The bog didn\'t load</h2><p>' + msg + '</p>';
+  }
+  if (!window.THREE) { fail('Gulper needs the three.js 3D engine from cdnjs.cloudflare.com. Check your connection and reload the page.'); return; }
+  const T = THREE;
+  const V3 = T.Vector3;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // ---------- Tuning ----------
   const STAGES = [
     { name: 'Seedling', at: 0, span: '1 cm' },
-    { name: 'Snapper', at: 1000, span: '4 cm' },
-    { name: 'Bog Brute', at: 8000, span: '30 cm' },
-    { name: 'Greenhouse Menace', at: 60000, span: '1.2 m' },
-    { name: 'Leviathan', at: 400000, span: '6 m' },
+    { name: 'Snapper', at: 1e3, span: '4 cm' },
+    { name: 'Bog Brute', at: 3e4, span: '30 cm' },
+    { name: 'Greenhouse Menace', at: 1e6, span: '1.2 m', sub: 'Wasps and pebbles are snacks now' },
+    { name: 'Leviathan', at: 2e7, span: '4 m', sub: 'Livestock is wandering in' },
+    { name: 'Titan', at: 1e8, span: '9 m', sub: 'Humans have noticed you. They seem friendly, for now' },
+    { name: 'Doom Bloom', at: 1e9, span: '20 m', sub: 'Army jeeps fit in your mouth now' },
+    { name: 'World Eater', at: 1e10, span: '50 m', sub: 'Tanks fit in your mouth now' },
   ];
-  // mg = body mass added to "digested"; food = fullness restored.
+  const BIG = 3;        // stage where wasps and pebbles stop hurting
+  const HUMAN_STAGE = 5; // 100 kg
+  // mg: mass added to "digested". food: fullness restored. size: catch radius in world units.
   const PREY = {
-    fly:    { mg: 12,     food: 6,  r: 8,  speed: 150, chew: .2,  stage: 0, w: 10 },
-    moth:   { mg: 90,     food: 9,  r: 11, speed: 95,  chew: .3,  stage: 0, w: 6 },
-    beetle: { mg: 1200,   food: 14, r: 12, speed: 70,  chew: .5,  stage: 1, w: 5 },
-    golden: { mg: 6000,   food: 25, r: 9,  speed: 230, chew: .3,  stage: 1, w: .7 },
-    bat:    { mg: 20000,  food: 30, r: 18, speed: 120, chew: .9,  stage: 2, w: 3 },
-    steak:  { mg: 30000,  food: 35, r: 16, chew: 1,    stage: 2,  w: 2, thrown: true },
-    pigeon: { mg: 350000, food: 50, r: 24, speed: 110, chew: 1.3, stage: 3, w: 2.5 },
-    wasp:   { bad: 'sting',  r: 10, speed: 165, stage: 0, w: 2.5 },
-    pebble: { bad: 'pebble', r: 10, stage: 0, w: 1.6, thrown: true },
+    fly:     { mg: 12,    food: 6,   size: .09, speed: 1.7, stages: [0, 2], w: 10, kind: 'fly' },
+    moth:    { mg: 90,    food: 9,   size: .14, speed: 1.1, stages: [0, 2], w: 6,  kind: 'fly' },
+    wasp:    { mg: 150,   food: 6,   size: .12, speed: 1.9, stages: [0, 4], w: 2.5, kind: 'fly', danger: (s) => s < BIG, hurt: 25 },
+    pebble:  { mg: 4e4,   food: 3,   size: .15, stages: [0, 4], w: 1.6, kind: 'thrown', danger: (s) => s < BIG, stun: 1.4 },
+    beetle:  { mg: 1200,  food: 14,  size: .17, speed: .8,  stages: [1, 3], w: 5,  kind: 'fly' },
+    golden:  { mg: 6000,  food: 25,  size: .12, speed: 2.5, stages: [1, 5], w: .7, kind: 'fly' },
+    bat:     { mg: 2e4,   food: 28,  size: .35, speed: 1.4, stages: [2, 5], w: 4,  kind: 'fly' },
+    steak:   { mg: 3e5,   food: 35,  size: .3,  stages: [2, 5], w: 2, kind: 'thrown' },
+    pigeon:  { mg: 3.5e5, food: 38,  size: .42, speed: 1.5, stages: [3, 6], w: 4,  kind: 'fly' },
+    duck:    { mg: 1.2e6, food: 42,  size: .55, speed: 1.6, stages: [3, 6], w: 3,  kind: 'fly' },
+    goat:    { mg: 4e7,   food: 50,  size: .9,  speed: .8,  stages: [4, 7], w: 3,  kind: 'ground', cy: .95 },
+    cow:     { mg: 6e8,   food: 60,  size: 1.5, speed: .6,  stages: [5, 7], w: 1.2, kind: 'ground', cy: 1.1, scale: 1.4 },
+    tourist: { mg: 7e7,   food: 55,  size: .9,  speed: 1.3, stages: [5, 7], w: 5,  kind: 'ground', cy: 1.1, human: true },
+    soldier: { mg: 8e7,   food: 55,  size: .9,  speed: 1.4, stages: [5, 7], w: 0,  kind: 'ground', cy: 1.1, human: true, war: true, gun: 'rifle' },
+    jeep:    { mg: 2e9,   food: 70,  size: 2,   speed: 2.2, stages: [6, 7], w: 0,  kind: 'ground', cy: 1, war: true, gun: 'mg' },
+    tank:    { mg: 4e10,  food: 100, size: 3,   speed: 1,   stages: [6, 7], w: 0,  kind: 'ground', cy: 1.3, war: true, gun: 'cannon', tooBig: (s) => s < 7 },
   };
-  const NAMES = { fly: 'fly', moth: 'moth', beetle: 'beetle', golden: 'golden fly', bat: 'bat', steak: 'steak', pigeon: 'pigeon' };
+  const GUNS = { rifle: { dmg: .8, speed: 60 }, mg: { dmg: .6, speed: 70 }, cannon: { dmg: 8, speed: 0 } };
+  const SWARMS = ['fly', 'beetle', 'bat', 'pigeon', 'duck', 'tourist', 'tourist', 'tourist'];
+  const SWARM_NAMES = ['Fly swarm', 'Beetle swarm', 'Bat swarm', 'Pigeon flock', 'Duck flock', 'Tour bus', 'Tour bus', 'Tour bus'];
+  const SHOP = {
+    meal: { cost: (s) => 12 * (1 + s) },
+    swarm: { cost: (s) => 35 * (1 + s) },
+    heal: { cost: (s) => 25 * (1 + s) },
+  };
 
-  let W = 0, H = 0, DPR = 1;
-  let bg = document.createElement('canvas');
-  let state = 'title';
-  let best = 0;
-  let g = null;
-  const target = { x: 0, y: 0 };
-  const keys = {};
+  const sOf = (stage) => Math.pow(1.55, stage);
+  const reachOf = (s) => 2.4 * s;
+  const camDistOf = (R) => R * 1.9 + 2;
 
   function fmt(mg) {
     if (mg < 1000) return Math.round(mg) + ' mg';
     const gr = mg / 1000;
     if (gr < 1000) return (gr < 10 ? gr.toFixed(1) : Math.round(gr)) + ' g';
-    return (gr / 1000).toFixed(gr < 1e4 ? 2 : 1) + ' kg';
+    const kg = gr / 1000;
+    if (kg < 1000) return (kg < 10 ? kg.toFixed(1) : Math.round(kg)) + ' kg';
+    const t = kg / 1000;
+    return (t < 10 ? t.toFixed(2) : t < 100 ? t.toFixed(1) : Math.round(t)) + ' t';
   }
 
-  // ---------- Geometry ----------
-  const sizeK = () => clamp(Math.min(W, H) / 700, .72, 1.25);
-  const stageScale = (s) => 1 + s * .32;
-  const base = () => ({ x: W / 2, y: H - Math.max(34, H * .06) });
-  const reach = () => Math.min(H * .84, H * (.36 + g.stage * .12));
-  function geom() {
-    const b = base(), h = g.head;
-    const s = g.scale * sizeK();
-    const L = 46 * s;
-    const cp = { x: b.x + (h.x - b.x) * .1 + g.sway, y: b.y - (b.y - h.y) * .55 };
-    const ang = Math.atan2(h.y - cp.y, h.x - cp.x);
-    const mouth = { x: h.x + Math.cos(ang) * L * .52, y: h.y + Math.sin(ang) * L * .52 };
-    return { b, h, s, L, cp, ang, mouth, catchR: L * .55 };
-  }
+  // ---------- Renderer, scene, camera ----------
+  let renderer;
+  try { renderer = new T.WebGLRenderer({ antialias: true }); } catch (e) { fail('Your browser has WebGL turned off, so the 3D scene can\'t be drawn.'); return; }
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.domElement.id = 'game';
+  renderer.domElement.setAttribute('aria-label', 'Gulper 3D game area');
+  document.body.prepend(renderer.domElement);
 
-  // ---------- Setup ----------
-  function resize() {
-    DPR = Math.min(2, window.devicePixelRatio || 1);
-    W = window.innerWidth; H = window.innerHeight;
-    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    buildBackground();
-    if (g) {
-      g.head.x = clamp(g.head.x, 24, W - 24);
-      g.head.y = clamp(g.head.y, 40, H - 60);
+  const scene = new T.Scene();
+  const HORIZON = '#29474a';
+  const camera = new T.PerspectiveCamera(50, 1, .03, 4000);
+  {
+    const c = document.createElement('canvas'); c.width = 2; c.height = 256;
+    const x = c.getContext('2d'); const gr = x.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, '#0a141c'); gr.addColorStop(.55, '#173037'); gr.addColorStop(1, HORIZON);
+    x.fillStyle = gr; x.fillRect(0, 0, 2, 256);
+    scene.background = new T.CanvasTexture(c);
+  }
+  scene.fog = new T.Fog(HORIZON, 10, 60);
+
+  const hemi = new T.HemisphereLight('#b4d2c8', '#16261c', .75); scene.add(hemi);
+  const sun = new T.DirectionalLight('#e8f0ff', .95);
+  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0008;
+  scene.add(sun); scene.add(sun.target);
+
+  // Shared geometry and materials
+  const GEO = {
+    sphere: new T.SphereGeometry(1, 14, 10),
+    dome: new T.SphereGeometry(1, 22, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    box: new T.BoxGeometry(1, 1, 1),
+    cyl: new T.CylinderGeometry(1, 1, 1, 10),
+    cone: new T.ConeGeometry(1, 1, 10),
+    plane: new T.PlaneGeometry(1, 1),
+    rock: new T.DodecahedronGeometry(1, 0),
+  };
+  const matCache = {};
+  function M(color, opts) {
+    const key = color + (opts ? JSON.stringify(opts) : '');
+    if (!matCache[key]) matCache[key] = new T.MeshStandardMaterial(Object.assign({ color, roughness: .7 }, opts || {}));
+    return matCache[key];
+  }
+  function part(geo, mat, sx, sy, sz, x, y, z, parent) {
+    const m = new T.Mesh(geo, mat);
+    m.scale.set(sx, sy, sz); m.position.set(x || 0, y || 0, z || 0);
+    m.castShadow = true;
+    if (parent) parent.add(m);
+    return m;
+  }
+  function canvasTex(w, h, draw) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    return new T.CanvasTexture(c);
+  }
+  const waspTex = canvasTex(64, 64, (x) => { for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? '#151515' : '#f4c44f'; x.fillRect(0, i * 8, 64, 8); } });
+  const cowTex = canvasTex(128, 128, (x) => {
+    x.fillStyle = '#f2efe6'; x.fillRect(0, 0, 128, 128); x.fillStyle = '#1d1d1d';
+    for (let i = 0; i < 9; i++) { x.beginPath(); x.ellipse(Math.random() * 128, Math.random() * 128, 8 + Math.random() * 14, 6 + Math.random() * 10, Math.random() * 3, 0, Math.PI * 2); x.fill(); }
+  });
+  const ringTex = canvasTex(128, 128, (x) => { x.strokeStyle = '#fff'; x.lineWidth = 7; x.beginPath(); x.arc(64, 64, 56, 0, Math.PI * 2); x.stroke(); });
+  const glowTex = canvasTex(128, 128, (x) => {
+    const gr = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.35, 'rgba(255,255,255,.85)'); gr.addColorStop(.42, 'rgba(255,255,255,.25)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+  });
+  const wingMat = M('#dfeaf2', { transparent: true, opacity: .45, side: T.DoubleSide, depthWrite: false });
+
+  // ---------- Scenery ----------
+  {
+    const ground = new T.Mesh(new T.CircleGeometry(1200, 64), M('#14281e', { roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+    const pool = M('#1f4049', { roughness: .15, metalness: .4 });
+    for (let i = 0; i < 18; i++) {
+      const r = 3 + Math.pow(Math.random(), 1.5) * 160, a = Math.random() * Math.PI * 2, s = 1 + Math.random() * (2 + r * .05);
+      const m = new T.Mesh(new T.CircleGeometry(1, 28), pool);
+      m.rotation.x = -Math.PI / 2; m.position.set(Math.sin(a) * r, .01, Math.cos(a) * r); m.scale.set(s, s * rand(.5, 1), 1); m.receiveShadow = true;
+      scene.add(m);
+    }
+    // Reeds: small near the plant, larger farther out, so they read as scale markers
+    const reedGeo = new T.ConeGeometry(.04, 1, 4); reedGeo.translate(0, .5, 0);
+    const reeds = new T.InstancedMesh(reedGeo, new T.MeshStandardMaterial({ color: '#ffffff', roughness: .9 }), 900);
+    const dummy = new T.Object3D(); const col = new T.Color();
+    for (let i = 0; i < 900; i++) {
+      const r = 1.2 + Math.pow(Math.random(), 2.2) * 280, a = Math.random() * Math.PI * 2;
+      const h = (.3 + Math.random() * .6) * (1 + r * .05);
+      dummy.position.set(Math.sin(a) * r, 0, Math.cos(a) * r);
+      dummy.rotation.set(rand(-.25, .25), 0, rand(-.25, .25));
+      dummy.scale.set(1 + r * .03, h, 1 + r * .03); dummy.updateMatrix();
+      reeds.setMatrixAt(i, dummy.matrix);
+      reeds.setColorAt(i, col.setHSL(.27 + Math.random() * .08, .35, .18 + Math.random() * .14));
+    }
+    scene.add(reeds);
+    // Woods and a village on the horizon: where the humans come from
+    const trunkGeo = new T.CylinderGeometry(.15, .2, 1, 6); trunkGeo.translate(0, .5, 0);
+    const crownGeo = new T.ConeGeometry(1, 1, 7); crownGeo.translate(0, .5, 0);
+    const trunks = new T.InstancedMesh(trunkGeo, M('#3b2c22'), 220);
+    const crowns = new T.InstancedMesh(crownGeo, M('#1d3a28'), 220);
+    for (let i = 0; i < 220; i++) {
+      const r = 45 + Math.random() * 330, a = Math.random() * Math.PI * 2, h = rand(7, 18);
+      dummy.rotation.set(0, 0, 0);
+      dummy.position.set(Math.sin(a) * r, 0, Math.cos(a) * r); dummy.scale.set(h * .25, h * .35, h * .25); dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix);
+      dummy.position.y = h * .3; dummy.scale.set(h * .28, h * .8, h * .28); dummy.updateMatrix(); crowns.setMatrixAt(i, dummy.matrix);
+    }
+    trunks.castShadow = crowns.castShadow = true;
+    scene.add(trunks, crowns);
+    const wallCols = ['#b9a888', '#9a8f7a', '#c4b49a', '#8a7e6b'];
+    for (let i = 0; i < 12; i++) {
+      const r = rand(80, 210), a = Math.random() * Math.PI * 2, s = rand(5, 9);
+      const house = new T.Group();
+      part(GEO.box, M(pick(wallCols)), s, s * .7, s * 1.3, 0, s * .35, 0, house);
+      const roof = part(new T.ConeGeometry(.75, 1, 4), M('#5b2f2a'), s * 1.1, s * .55, s * 1.4, 0, s * .97, 0, house);
+      roof.rotation.y = Math.PI / 4;
+      const lit = part(GEO.plane, M('#f6d27a', { emissive: '#f6b04a', emissiveIntensity: .9 }), s * .2, s * .2, 1, 0, s * .4, s * .651, house);
+      lit.castShadow = false;
+      house.position.set(Math.sin(a) * r, 0, Math.cos(a) * r); house.rotation.y = a + Math.PI;
+      scene.add(house);
+    }
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + rand(-.2, .2), r = rand(600, 800);
+      const hill = new T.Mesh(GEO.sphere, M('#122019', { roughness: 1 }));
+      hill.position.set(Math.sin(a) * r, -40, Math.cos(a) * r); hill.scale.set(rand(160, 260), rand(80, 140), rand(120, 200));
+      scene.add(hill);
     }
   }
+  const moon = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: '#dfeee6', fog: false, depthWrite: false, transparent: true }));
+  moon.scale.set(150, 150, 1); scene.add(moon);
 
-  function seeded(seed) {
-    let s = seed;
-    return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  // ---------- The plant ----------
+  const matLobe = new T.MeshStandardMaterial({ color: '#9fd44c', roughness: .55 });
+  const matMaw = new T.MeshStandardMaterial({ color: '#e2425f', roughness: .45, side: T.BackSide, emissive: '#4a0814' });
+  const matCilia = new T.MeshStandardMaterial({ color: '#e3f1b6', roughness: .6 });
+  const matStalk = new T.MeshStandardMaterial({ color: '#5f9b3a', roughness: .6 });
+  const matLeaf = new T.MeshStandardMaterial({ color: '#7fbf45', roughness: .6 });
+  const GREEN = { lobe: new T.Color('#9fd44c'), stalk: new T.Color('#5f9b3a'), leaf: new T.Color('#7fbf45') };
+  const BROWN = new T.Color('#7a5a2e');
+
+  const plantBase = new T.Group(); scene.add(plantBase);
+  part(GEO.dome, M('#1c3a2a', { roughness: 1 }), .62, .12, .62, 0, 0, 0, plantBase).receiveShadow = true;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + .3;
+    const leaf = part(GEO.sphere, matLeaf, .11, .025, .34, Math.sin(a) * .36, .1, Math.cos(a) * .36, plantBase);
+    leaf.rotation.order = 'YXZ'; leaf.rotation.set(-.3, a, 0);
+    // a small dormant trap at each leaf tip, like a real rosette
+    const tip = part(GEO.sphere, matLobe, .07, .04, .08, Math.sin(a) * .7, .18, Math.cos(a) * .7, plantBase);
+    tip.rotation.y = a;
   }
+  const stalk = new T.Mesh(new T.BufferGeometry(), matStalk); stalk.castShadow = true; scene.add(stalk);
+  let stalkCurve = null;
 
-  function buildBackground() {
-    bg.width = Math.round(W * DPR); bg.height = Math.round(H * DPR);
-    const b = bg.getContext('2d');
-    b.setTransform(DPR, 0, 0, DPR, 0, 0);
-    const grad = b.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, C.bog2); grad.addColorStop(1, C.bog);
-    b.fillStyle = grad; b.fillRect(0, 0, W, H);
-
-    // Moon behind the greenhouse glass
-    const mr = Math.min(W, H) * .07, mx = W * .8, my = H * .17;
-    const glow = b.createRadialGradient(mx, my, mr * .5, mx, my, mr * 4);
-    glow.addColorStop(0, 'rgba(214,231,221,.18)'); glow.addColorStop(1, 'rgba(214,231,221,0)');
-    b.fillStyle = glow; b.fillRect(0, 0, W, H);
-    b.fillStyle = 'rgba(214,231,221,.75)';
-    b.beginPath(); b.arc(mx, my, mr, 0, Math.PI * 2); b.fill();
-
-    // Greenhouse glazing bars
-    b.strokeStyle = 'rgba(214,231,221,.06)'; b.lineWidth = 3;
-    const cols = Math.max(3, Math.round(W / 180));
-    for (let i = 1; i < cols; i++) { const x = (W / cols) * i; b.beginPath(); b.moveTo(x, 0); b.lineTo(x, H * .78); b.stroke(); }
-    [.22, .5, .78].forEach((f) => { b.beginPath(); b.moveTo(0, H * f); b.lineTo(W, H * f); b.stroke(); });
-
-    // Reeds and pitcher-plant silhouettes
-    const r = seeded(7);
-    for (let i = 0; i < Math.round(W / 14); i++) {
-      const x = r() * W, hgt = H * (.08 + r() * .22), lean = (r() - .5) * 40;
-      b.strokeStyle = `rgba(45,90,59,${.25 + r() * .35})`; b.lineWidth = 2 + r() * 3; b.lineCap = 'round';
-      b.beginPath(); b.moveTo(x, H); b.quadraticCurveTo(x + lean * .3, H - hgt * .6, x + lean, H - hgt); b.stroke();
+  const head = new T.Group(); scene.add(head);
+  function makeLobe(stagger) {
+    const lobe = new T.Group();
+    const outer = part(GEO.dome, matLobe, .2, .17, .25, 0, 0, .25, lobe);
+    const inner = part(GEO.dome, matMaw, .2, .17, .25, 0, 0, .25, lobe); inner.castShadow = false;
+    const ciliaGeo = new T.ConeGeometry(.012, .09, 4);
+    const n = 15;
+    for (let i = 0; i < n; i++) {
+      const t = -Math.PI / 2 + .55 + ((i + stagger) / n) * (Math.PI * 2 - 1.1);
+      const c = new T.Mesh(ciliaGeo, matCilia);
+      c.position.set(Math.cos(t) * .205, -.04, .25 + Math.sin(t) * .255);
+      c.rotation.x = Math.PI;
+      lobe.add(c);
     }
-    // Sphagnum mound
-    const by = base().y;
-    b.fillStyle = '#10251f';
-    b.beginPath(); b.ellipse(W / 2, H + 10, Math.max(W * .55, 260), H - by + 40, 0, Math.PI, 0); b.fill();
-    for (let i = 0; i < 160; i++) {
-      const a = Math.PI + r() * Math.PI, rr = r();
-      const x = W / 2 + Math.cos(a) * Math.max(W * .55, 260) * rr, y = H + 10 + Math.sin(a) * (H - by + 40) * rr;
-      b.fillStyle = `rgba(159,212,76,${.05 + r() * .12})`;
-      b.beginPath(); b.arc(x, y, 1 + r() * 2.5, 0, Math.PI * 2); b.fill();
+    outer.receiveShadow = true;
+    return lobe;
+  }
+  const hingeU = new T.Group(); hingeU.add(makeLobe(0));
+  const hingeL = new T.Group(); const flip = new T.Group(); flip.rotation.z = Math.PI; flip.add(makeLobe(.5)); hingeL.add(flip);
+  head.add(hingeU, hingeL);
+  part(GEO.sphere, matStalk, .06, .06, .06, 0, 0, 0, head);
+
+  const zoneRing = new T.Sprite(new T.SpriteMaterial({ map: ringTex, color: '#d6e7dd', transparent: true, opacity: .22, depthWrite: false }));
+  const lockRing = new T.Sprite(new T.SpriteMaterial({ map: ringTex, color: '#f4c44f', transparent: true, opacity: .95, depthTest: false, depthWrite: false }));
+  lockRing.renderOrder = 10;
+  scene.add(zoneRing, lockRing);
+
+  // ---------- Prey builders (forward is +z, origin at body centre; ground units stand on y=0) ----------
+  function wingPair(parent, mat, len, wid, y, x0) {
+    const ws = [];
+    for (const sd of [-1, 1]) {
+      const piv = new T.Group(); piv.position.set(sd * x0, y, 0); piv.userData.sd = sd;
+      const w = part(GEO.plane, mat, len, wid, 1, sd * len / 2, 0, 0, piv);
+      w.rotation.x = -Math.PI / 2; w.castShadow = false;
+      parent.add(piv); ws.push(piv);
+    }
+    return ws;
+  }
+  function limb(parent, mat, x, hipY, z, len, r) {
+    const piv = new T.Group(); piv.position.set(x, hipY, z);
+    part(GEO.cyl, mat, r, len, r, 0, -len / 2, 0, piv);
+    parent.add(piv); return piv;
+  }
+  function bird(body, headCol, beak, wing) {
+    const root = new T.Group();
+    part(GEO.sphere, M(body), .6, .6, 1.05, 0, 0, 0, root);
+    part(GEO.sphere, M(headCol), .38, .38, .38, 0, .5, .85, root);
+    const b = part(GEO.cone, M(beak), .1, .32, .1, 0, .45, 1.28, root); b.rotation.x = Math.PI / 2;
+    const tail = part(GEO.cone, M(body), .3, .5, .12, 0, .1, -1.1, root); tail.rotation.x = -Math.PI / 2;
+    return { root, wings: wingPair(root, M(wing, { side: T.DoubleSide }), 1.4, .75, .3, .35), flap: 9 };
+  }
+  function quad(bodyMat, legCol, headCol, horns) {
+    const root = new T.Group();
+    part(GEO.box, bodyMat, .7, .6, 1.3, 0, 1.05, 0, root);
+    part(GEO.box, M(headCol), .38, .42, .55, 0, 1.4, .85, root);
+    const legs = [];
+    for (const [x, z] of [[-.25, .45], [.25, .45], [-.25, -.45], [.25, -.45]]) legs.push(limb(root, M(legCol), x, .8, z, .8, .08));
+    if (horns) for (const x of [-.12, .12]) { const h = part(GEO.cone, M('#8a7b62'), .06, .35, .06, x, 1.72, .78, root); h.rotation.x = -.4; }
+    return { root, legs };
+  }
+  const SKIN = ['#f1c27d', '#c68642', '#8d5524', '#e0ac69', '#ffdbac', '#a8693f'];
+  const SHIRTS = ['#ff6f91', '#3ec1d3', '#ffd166', '#f78c6b', '#9b5de5', '#06d6a0'];
+  function human(soldier) {
+    const root = new T.Group();
+    const shirt = soldier ? M('#4f5b33') : M(pick(SHIRTS));
+    const pants = soldier ? M('#3d4728') : M(pick(['#2b4c7e', '#d9c9a3', '#333']));
+    const legs = [limb(root, pants, -.12, .9, 0, .9, .08), limb(root, pants, .12, .9, 0, .9, .08)];
+    part(GEO.box, shirt, .5, .7, .28, 0, 1.25, 0, root);
+    const arms = [limb(root, shirt, -.32, 1.55, 0, .65, .065), limb(root, shirt, .32, 1.55, 0, .65, .065)];
+    part(GEO.sphere, M(pick(SKIN)), .17, .19, .17, 0, 1.8, 0, root);
+    let gun = null;
+    if (soldier) {
+      part(GEO.dome, M('#38422a'), .21, .16, .21, 0, 1.86, 0, root);
+      part(GEO.box, M('#1a1a1a'), .06, .08, .9, .15, 1.35, .4, root);
+      arms[0].rotation.x = arms[1].rotation.x = -1.2;
+      gun = new T.Object3D(); gun.position.set(.15, 1.35, .86); root.add(gun);
+    } else {
+      part(GEO.cyl, M('#e6cf8f'), .3, .03, .3, 0, 1.95, 0, root);
+      part(GEO.cyl, M('#e6cf8f'), .17, .14, .17, 0, 2.03, 0, root);
+      part(GEO.box, M('#151515'), .18, .12, .1, 0, 1.5, .22, root);
+    }
+    return { root, legs, arms, gun, cam: !soldier };
+  }
+  const BUILD = {
+    fly: () => {
+      const root = new T.Group();
+      part(GEO.sphere, M('#1f2426', { roughness: .4 }), .55, .5, .9, 0, 0, 0, root);
+      for (const x of [-.22, .22]) part(GEO.sphere, M('#b02a2a'), .3, .3, .3, x, .12, .75, root);
+      return { root, wings: wingPair(root, wingMat, 1.1, .55, .35, .2), flap: 55 };
+    },
+    golden: () => {
+      const root = new T.Group();
+      part(GEO.sphere, M('#f4c44f', { emissive: '#8a6100', emissiveIntensity: .8, metalness: .6, roughness: .3 }), .55, .5, .9, 0, 0, 0, root);
+      for (const x of [-.22, .22]) part(GEO.sphere, M('#fff3c4'), .3, .3, .3, x, .12, .75, root);
+      return { root, wings: wingPair(root, M('#f4c44f', { transparent: true, opacity: .5, side: T.DoubleSide, depthWrite: false }), 1.1, .55, .35, .2), flap: 60 };
+    },
+    moth: () => {
+      const root = new T.Group();
+      part(GEO.sphere, M('#8b7558'), .4, .4, 1, 0, 0, 0, root);
+      return { root, wings: wingPair(root, M('#c9b18c', { side: T.DoubleSide }), 1.5, 1.1, .2, .15), flap: 16 };
+    },
+    beetle: () => {
+      const root = new T.Group();
+      part(GEO.dome, M('#2f58c9', { metalness: .5, roughness: .25 }), .8, .7, 1, 0, 0, 0, root);
+      part(GEO.sphere, M('#111'), .8, .2, 1, 0, 0, 0, root);
+      part(GEO.sphere, M('#111'), .4, .35, .35, 0, .05, .95, root);
+      return { root, wings: wingPair(root, wingMat, 1, .5, .55, .2), flap: 40 };
+    },
+    wasp: () => {
+      const root = new T.Group();
+      const body = part(GEO.sphere, new T.MeshStandardMaterial({ map: waspTex, roughness: .5 }), .5, 1.2, .5, 0, 0, 0, root);
+      body.rotation.x = Math.PI / 2;
+      part(GEO.sphere, M('#151515'), .4, .4, .4, 0, .05, 1.25, root);
+      const sting = part(GEO.cone, M('#151515'), .12, .5, .12, 0, 0, -1.35, root); sting.rotation.x = -Math.PI / 2;
+      return { root, wings: wingPair(root, wingMat, 1.1, .5, .4, .2), flap: 60 };
+    },
+    pebble: () => {
+      const root = new T.Group();
+      part(GEO.rock, M('#7d8580', { flatShading: true }), rand(.8, 1.1), rand(.6, .9), rand(.8, 1.1), 0, 0, 0, root);
+      return { root };
+    },
+    bat: () => {
+      const root = new T.Group();
+      part(GEO.sphere, M('#3b2a45'), .5, .5, .8, 0, 0, 0, root);
+      for (const x of [-.2, .2]) part(GEO.cone, M('#3b2a45'), .12, .35, .12, x, .5, .45, root);
+      return { root, wings: wingPair(root, M('#2a1e33', { side: T.DoubleSide }), 1.8, 1.1, .1, .3), flap: 12 };
+    },
+    steak: () => {
+      const root = new T.Group();
+      part(GEO.sphere, M('#b8323f'), 1, .35, .75, 0, 0, 0, root);
+      part(GEO.sphere, M('#f2b8b0'), .6, .37, .4, -.15, 0, 0, root);
+      const bone = part(GEO.cyl, M('#f0ece0'), .12, 1.3, .12, 1.1, 0, 0, root); bone.rotation.z = Math.PI / 2;
+      for (const z of [-.14, .14]) part(GEO.sphere, M('#f0ece0'), .18, .18, .18, 1.75, 0, z, root);
+      return { root };
+    },
+    pigeon: () => bird('#8c94a0', '#6d7f8c', '#e39a3b', '#6a7380'),
+    duck: () => bird('#8a6a4a', '#1f6b45', '#f2b73a', '#6e5236'),
+    goat: () => quad(M('#d9d2c3'), '#bfb6a5', '#d9d2c3', true),
+    cow: () => {
+      const q = quad(new T.MeshStandardMaterial({ map: cowTex, roughness: .8 }), '#efeae0', '#efeae0', false);
+      part(GEO.sphere, M('#f2a6b0'), .16, .12, .16, 0, .72, -.2, q.root);
+      return q;
+    },
+    tourist: () => human(false),
+    soldier: () => human(true),
+    jeep: () => {
+      const root = new T.Group();
+      part(GEO.box, M('#4b5a32'), 2, .8, 3.4, 0, 1, 0, root);
+      part(GEO.box, M('#9fc3cf', { roughness: .1, metalness: .5 }), 1.8, .6, .08, 0, 1.7, .6, root);
+      for (const [x, z] of [[-1.05, 1.15], [1.05, 1.15], [-1.05, -1.15], [1.05, -1.15]]) { const w = part(GEO.cyl, M('#161616'), .45, .35, .45, x, .45, z, root); w.rotation.z = Math.PI / 2; }
+      const g = part(GEO.cyl, M('#1a1a1a'), .08, 1.2, .08, 0, 1.9, -.2, root); g.rotation.x = Math.PI / 2;
+      const gun = new T.Object3D(); gun.position.set(0, 1.9, .45); root.add(gun);
+      return { root, gun };
+    },
+    tank: () => {
+      const root = new T.Group();
+      part(GEO.box, M('#53613a'), 3, 1.1, 5.5, 0, .95, 0, root);
+      for (const x of [-1.7, 1.7]) part(GEO.box, M('#2a2a2a'), .6, .95, 5.7, x, .5, 0, root);
+      const turret = new T.Group(); turret.position.y = 1.9; root.add(turret);
+      part(GEO.box, M('#5d6c41'), 2, .8, 2.4, 0, 0, 0, turret);
+      const barrel = part(GEO.cyl, M('#3f4a2c'), .14, 3.5, .14, 0, .05, 2.8, turret); barrel.rotation.x = Math.PI / 2;
+      const gun = new T.Object3D(); gun.position.set(0, .05, 4.6); turret.add(gun);
+      return { root, gun };
+    },
+  };
+
+  // ---------- Effects: particles, pops, banners ----------
+  const partGeo = new T.SphereGeometry(1, 6, 4);
+  const partMats = {};
+  function pmat(color, glow) {
+    const k = color + (glow ? 'g' : '');
+    if (!partMats[k]) partMats[k] = glow ? new T.MeshBasicMaterial({ color, transparent: true }) : new T.MeshStandardMaterial({ color, transparent: true, roughness: .5 });
+    return partMats[k];
+  }
+  function burst(pos, color, n, size, speed, glow) {
+    for (let i = 0; i < n && g.parts.length < 260; i++) {
+      const m = new T.Mesh(partGeo, pmat(color, glow));
+      m.position.copy(pos); m.scale.setScalar(size * rand(.5, 1.2));
+      const v = new V3(rand(-1, 1), rand(-.2, 1.2), rand(-1, 1)).normalize().multiplyScalar(speed * rand(.4, 1));
+      scene.add(m);
+      g.parts.push({ m, v, t: 0, life: rand(.35, .8), grav: speed * 2.2, s0: m.scale.x });
     }
   }
-
-  function newGame() {
-    g = {
-      mass: 0, stage: 0, food: 70, leaves: 3, items: [], pops: [], parts: [],
-      spawnT: .5, combo: 0, lastCatch: -9, time: 0, starveT: 0, shake: 0,
-      head: { x: W / 2, y: H * .6 }, jaw: 'open', open: 1, jawT: 0, scale: 1, sway: 0,
-      banner: null, snapQ: 0, leafDroop: [0, 0, 0],
-    };
-    target.x = W / 2; target.y = H * .6;
+  function flash(pos, color, size, life) {
+    const m = new T.Mesh(partGeo, pmat(color, true));
+    m.position.copy(pos); m.scale.setScalar(size); scene.add(m);
+    g.parts.push({ m, v: new V3(), t: 0, life, grav: 0, s0: size });
+  }
+  const popLayer = $('pops');
+  let W = 1, H = 1;
+  function toScreen(v) {
+    const p = v.clone().project(camera);
+    return { x: (p.x + 1) / 2 * W, y: (1 - p.y) / 2 * H, ok: p.z < 1 };
+  }
+  function pop(pos, text, cls) {
+    const s = toScreen(pos);
+    if (!s.ok) return;
+    const el = document.createElement('div');
+    el.className = 'pop ' + (cls || '');
+    el.textContent = text;
+    el.style.left = clamp(s.x, 60, W - 60) + 'px'; el.style.top = clamp(s.y, 80, H - 80) + 'px';
+    popLayer.appendChild(el);
+    setTimeout(() => el.remove(), 1250);
+  }
+  const bannerEl = $('banner');
+  const bannerQ = [];
+  let bannerBusy = false;
+  function banner(eyebrow, text, sub, war, stage) {
+    // a newer growth banner replaces any growth banner still waiting
+    if (stage) for (let i = bannerQ.length - 1; i >= 0; i--) if (bannerQ[i].stage) bannerQ.splice(i, 1);
+    bannerQ.push({ eyebrow, text, sub, war, stage });
+    if (!bannerBusy) nextBanner();
+  }
+  function nextBanner() {
+    const b = bannerQ.shift();
+    if (!b) { bannerBusy = false; bannerEl.hidden = true; return; }
+    bannerBusy = true;
+    $('bannerEyebrow').textContent = b.eyebrow; $('bannerText').textContent = b.text; $('bannerSub').textContent = b.sub || '';
+    bannerEl.classList.toggle('war', !!b.war);
+    bannerEl.hidden = true; void bannerEl.offsetWidth; bannerEl.hidden = false;
+    setTimeout(nextBanner, reduceMotion ? 2200 : 2600);
   }
 
   // ---------- Audio ----------
-  let actx = null, muted = false;
+  let actx = null, muted = false, noiseBuf = null, lastShot = 0;
   function ensureAudio() {
     if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; } }
     if (actx && actx.state === 'suspended') actx.resume();
   }
-  function tone(freq, dur, type = 'sine', vol = .2, slide = 0, delay = 0) {
+  function tone(freq, dur, type, vol, slide, delay) {
     if (!actx || muted) return;
-    const t = actx.currentTime + delay;
+    const t = actx.currentTime + (delay || 0);
     const o = actx.createOscillator(), gn = actx.createGain();
-    o.type = type; o.frequency.setValueAtTime(freq, t);
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
     if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
     gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(.001, t + dur);
     o.connect(gn).connect(actx.destination); o.start(t); o.stop(t + dur + .02);
   }
+  function noise(dur, vol, freq) {
+    if (!actx || muted) return;
+    if (!noiseBuf) {
+      noiseBuf = actx.createBuffer(1, actx.sampleRate * .7, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const t = actx.currentTime;
+    const src = actx.createBufferSource(); src.buffer = noiseBuf;
+    const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq;
+    const gn = actx.createGain(); gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(.001, t + dur);
+    src.connect(f).connect(gn).connect(actx.destination); src.start(t); src.stop(t + dur);
+  }
   const sfx = {
     snap: () => tone(340, .07, 'square', .05, 140),
     chomp: () => { tone(170, .14, 'sawtooth', .1, 60); tone(90, .22, 'sine', .25, 40); },
-    sting: () => { tone(880, .3, 'sawtooth', .07, 260); },
+    crunch: () => { noise(.12, .18, 3000); tone(120, .15, 'sine', .2, 50); },
+    sting: () => tone(880, .3, 'sawtooth', .07, 260),
     clank: () => tone(1500, .14, 'triangle', .12, 700),
     grow: () => [392, 523, 659, 784].forEach((f, i) => tone(f, .28, 'triangle', .1, 0, i * .09)),
-    wilt: () => tone(320, .7, 'sine', .15, 70),
+    coin: () => { tone(988, .08, 'square', .04); tone(1319, .14, 'square', .04, 0, .07); },
+    shot: () => { const n = performance.now(); if (n - lastShot < 70) return; lastShot = n; noise(.1, .05, 2600); },
+    boom: () => { noise(.7, .28, 380); tone(60, .5, 'sine', .3, 30); },
+    siren: () => [0, .5].forEach((d) => { tone(600, .45, 'sawtooth', .05, 900, d); }),
+    wilt: () => tone(320, .8, 'sine', .15, 60),
   };
 
-  // ---------- Game logic ----------
+  // ---------- Game state ----------
+  let state = 'title';
+  let best = 0;
+  let g = null;
+  const mouse = { x: 0, y: 0 };
+  const keys = {};
+  const ray = new T.Raycaster();
+
+  function clearWorld() {
+    if (!g) return;
+    for (const p of g.prey) scene.remove(p.grp);
+    for (const s of g.shots) scene.remove(s.m);
+    for (const p of g.parts) scene.remove(p.m);
+  }
+  function newGame() {
+    clearWorld();
+    g = {
+      mass: 0, coins: 0, earned: 0, stage: 0, food: 70, hp: 100,
+      prey: [], shots: [], parts: [],
+      spawnT: .4, combo: 0, lastCatch: -9, time: 0, shake: 0, hitFlash: 0,
+      head: new V3(0, 1.4, .4), dir: new V3(0, .2, 1).normalize(),
+      jaw: 'open', open: 1, jawT: 0, sCur: 1, sTarget: 1, sway: 0,
+      war: false, humansEaten: 0, announcedHumans: false, snapQ: 0,
+      camAng: 0, aimTarget: null, cause: '',
+    };
+    mouse.x = W / 2; mouse.y = H * .45;
+  }
+
+  const R = () => reachOf(g.sCur);
+  const L = () => .5 * g.sCur;
+  const mouthPos = () => g.head.clone().addScaledVector(g.dir, L() * .55);
+  const catchR = () => .34 * g.sCur;
+  function verdict(p) {
+    const d = p.def;
+    if (d.tooBig && d.tooBig(g.stage)) return 'big';
+    if (d.danger && d.danger(g.stage)) return 'bad';
+    return 'ok';
+  }
+  const centerOf = (p) => new V3(p.pos.x, p.pos.y + p.cy, p.pos.z);
+
+  // ---------- Spawning ----------
+  function spawnPrey(type, opts) {
+    opts = opts || {};
+    const def = PREY[type];
+    const s = g.sTarget, Rr = reachOf(s), Dc = camDistOf(Rr);
+    const vis = Math.max(1, Dc * (def.kind === 'ground' ? .007 : .011) / def.size);
+    const built = BUILD[type]();
+    const grp = built.root;
+    const sc = vis * (def.kind === 'ground' ? (def.scale || 1) : def.size);
+    grp.scale.setScalar(sc);
+    const p = {
+      type, def, grp, pos: grp.position, vel: new V3(), t: rand(0, 10), life: 0,
+      r: def.size * vis, cy: (def.cy || 0) * sc, wings: built.wings || [], flap: built.flap || 20,
+      legs: built.legs || [], arms: built.arms || [], gun: built.gun || null, hasCam: !!built.cam, spin: null,
+    };
+    const spdK = Math.pow(Rr / 2.4, def.kind === 'ground' ? .55 : .8);
+    if (def.kind === 'fly') {
+      if (opts.orbit) {
+        const rad = rand(.4, .95) * Rr;
+        p.orbit = { rad, ang: rand(0, Math.PI * 2), w: (Math.random() < .5 ? -1 : 1) * def.speed * spdK * .45 / rad, y: rand(.3, .9) * Rr, until: rand(12, 16) };
+        p.pos.set(Math.sin(p.orbit.ang) * rad, p.orbit.y, Math.cos(p.orbit.ang) * rad);
+      } else {
+        const side = Math.random() < .5 ? -1 : 1;
+        const a = g.camAng + side * Math.PI / 2 + rand(-.9, .9), Rs = Rr * 1.7 + 1.5;
+        const y = Math.max(.3 * s, rand(.25, 1) * Rr);
+        const start = new V3(Math.sin(a) * Rs, y, Math.cos(a) * Rs);
+        const b = rand(0, Math.PI * 2), rr = rand(0, .6) * Rr;
+        const dest = new V3(Math.sin(b) * rr, clamp(y + rand(-.25, .25) * Rr, .3 * s, Rr), Math.cos(b) * rr);
+        p.vel.copy(dest.sub(start).normalize().multiplyScalar(def.speed * spdK * rand(.8, 1.2)));
+        p.base = start.clone(); p.pos.copy(start);
+        p.wob = { amp: p.r * rand(1, 4), f: rand(1.5, 4) };
+      }
+      p.maxLife = 30;
+    } else if (def.kind === 'thrown') {
+      const a = g.camAng + Math.PI + rand(-1, 1), Rs = Rr * 1.5 + 1;
+      const p0 = new V3(Math.sin(a) * Rs, .2, Math.cos(a) * Rs);
+      const p1 = new V3(-p0.x * rand(.6, 1.2) + rand(-.3, .3) * Rr, 0, -p0.z * rand(.6, 1.2) + rand(-.3, .3) * Rr);
+      const tf = rand(2.2, 3), peak = rand(.45, 1) * Rr;
+      p.G = 8 * peak / (tf * tf);
+      p.vel.copy(p1.sub(p0).divideScalar(tf)); p.vel.y = p.G * tf / 2;
+      p.pos.copy(p0);
+      p.spin = new V3(rand(-6, 6), rand(-6, 6), rand(-6, 6));
+      p.maxLife = tf + .5;
+    } else {
+      const a = (opts.angle !== undefined ? opts.angle : g.camAng + Math.PI + rand(-1.3, 1.3));
+      const Rg = Rr * 2.3 + 6 + (opts.extra || 0);
+      p.pos.set(Math.sin(a) * Rg, 0, Math.cos(a) * Rg);
+      p.speed = def.speed * spdK * rand(.85, 1.15);
+      p.spawnR = Rg;
+      if (def.human || def.war) {
+        const ranges = { tourist: opts.bus ? [.15, .6] : [.3, .95], soldier: [.5, 1.3], jeep: [.7, 1.5], tank: [.85, 1.6] };
+        const rg = ranges[type];
+        p.stand = rand(rg[0], rg[1]) * Rr;
+        p.mode = 'approach';
+        p.fireT = rand(1, 3); p.burst = 0;
+        p.stay = rand(25, 40);
+      } else {
+        p.mode = 'cross';
+        const perp = a + Math.PI / 2, off = rand(.15, .85) * Rr * (Math.random() < .5 ? -1 : 1);
+        const via = new V3(Math.sin(perp) * off, 0, Math.cos(perp) * off);
+        p.vel.copy(via.sub(p.pos).setY(0).normalize().multiplyScalar(p.speed));
+      }
+      p.maxLife = 160;
+    }
+    scene.add(grp);
+    g.prey.push(p);
+    return p;
+  }
+
+  function spawnTick() {
+    const st = g.stage;
+    const ground = g.prey.filter((p) => p.def.kind === 'ground').length;
+    if (g.prey.length > 70) return;
+    const pool = [];
+    for (const [k, d] of Object.entries(PREY)) {
+      if (st < d.stages[0] || st > d.stages[1]) continue;
+      let w = d.w;
+      if (k === 'wasp' && st < BIG) w += st * .8;
+      if (g.war) {
+        if (k === 'soldier') w = 6;
+        if (k === 'jeep' && st >= 6) w = 2;
+        if (k === 'tank' && st >= 6) w = 1.3;
+        if (k === 'tourist') w = 1.5;
+      }
+      if (d.kind === 'ground' && ground >= (g.war ? 16 : 14)) w = 0;
+      if (w > 0) pool.push([k, w]);
+    }
+    if (!pool.length) return;
+    let roll = Math.random() * pool.reduce((a, b) => a + b[1], 0), i = 0;
+    while (roll > pool[i][1]) { roll -= pool[i][1]; i++; }
+    const type = pool[i][0];
+    if (type === 'soldier') {
+      const a = g.camAng + Math.PI + rand(-1.2, 1.2), n = 2 + Math.floor(Math.random() * 2);
+      for (let j = 0; j < n; j++) spawnPrey('soldier', { angle: a + rand(-.12, .12), extra: j * 1.5 });
+    } else spawnPrey(type);
+  }
+
+  function removePrey(p) { p.dead = true; scene.remove(p.grp); }
+
+  // ---------- Combat ----------
+  function plantTarget() {
+    const r = Math.random();
+    if (r < .45) return g.head.clone();
+    if (r < .85 && stalkCurve) return stalkCurve.getPoint(rand(.3, .8));
+    return new V3(rand(-.3, .3) * g.sCur, .2 * g.sCur, rand(-.3, .3) * g.sCur);
+  }
+  function fire(p) {
+    const gun = GUNS[p.def.gun];
+    const from = new V3(); p.gun.getWorldPosition(from);
+    const to = plantTarget();
+    const dist = from.distanceTo(to);
+    const cannon = p.def.gun === 'cannon';
+    const shotSize = Math.max(.05, camDistOf(R()) * .004);
+    const m = new T.Mesh(partGeo, pmat(cannon ? '#ffb347' : '#ffe08a', true));
+    m.scale.set(shotSize * (cannon ? 2.5 : 1), shotSize * (cannon ? 2.5 : 1), shotSize * (cannon ? 2.5 : 5));
+    m.position.copy(from); scene.add(m);
+    const dur = cannon ? 1.1 : clamp(dist / (gun.speed * Math.pow(R() / 21, .5)), .12, .8);
+    g.shots.push({ m, from, to, t: 0, dur, dmg: gun.dmg, cannon, arc: cannon ? dist * .25 : 0 });
+    flash(from, '#fff1b8', shotSize * (cannon ? 6 : 3), .06);
+    if (cannon) sfx.boom(); else sfx.shot();
+  }
+  function hurt(amount, where, label, cause) {
+    if (state !== 'playing') return;
+    g.hp -= amount; g.hitFlash = .25;
+    if (label) pop(where, label, 'bad big');
+    if (g.hp <= 0) { g.hp = 0; gameOver(cause); }
+  }
+
+  // ---------- Snapping ----------
   function trySnap() {
     if (g.jaw !== 'open' || g.open < .6) return;
     g.jaw = 'snapping'; g.jawT = 0; sfx.snap();
   }
-
-  function pop(x, y, text, color, big) { g.pops.push({ x, y, text, color, t: 0, big: !!big }); }
-
-  function burst(x, y, color, n) {
-    for (let i = 0; i < n; i++) {
-      const a = rand(0, Math.PI * 2), v = rand(60, 220);
-      g.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, t: 0, life: rand(.4, .8), color, r: rand(1.5, 3.5) });
-    }
-  }
-
-  function loseLeaf(msg, x, y) {
-    g.leaves--; g.shake = .45; g.combo = 0;
-    pop(x, y, msg, C.maw, true);
-    sfx.wilt();
-    if (g.leaves <= 0) gameOver();
-  }
-
   function resolveSnap() {
-    const G = geom();
-    const caught = g.items.filter((it) => Math.hypot(it.x - G.mouth.x, it.y - G.mouth.y) < G.catchR + it.r * .6);
+    const m = mouthPos(), cr = catchR();
+    let caught = g.prey.filter((p) => !p.dead && centerOf(p).distanceTo(m) < cr + p.r * .6);
     if (!caught.length) { g.jaw = 'cooldown'; g.jawT = .28; g.combo = 0; return; }
-    g.items = g.items.filter((it) => !caught.includes(it));
-
-    let bad = null, chew = 0, goods = 0;
-    for (const it of caught) {
-      if (it.def.bad) { if (bad !== 'sting') bad = it.def.bad; continue; }
+    const tooBig = caught.filter((p) => verdict(p) === 'big');
+    if (tooBig.length) {
+      sfx.clank(); g.shake = .3; g.combo = 0; g.jaw = 'stunned'; g.jawT = 1;
+      pop(m, 'Too big to swallow yet', 'dim big');
+      return;
+    }
+    let bad = null, chew = 0, gained = 0, coins = 0, goods = 0, humans = 0, crunchy = false;
+    for (const p of caught) {
+      removePrey(p);
+      const v = verdict(p);
+      if (v === 'bad') { if (bad !== 'wasp') bad = p.type; continue; }
       goods++;
+      if (p.def.danger) crunchy = true;
+      if (p.def.human) humans++;
     }
     if (goods) {
       g.combo = g.time - g.lastCatch < 2.5 ? Math.min(5, g.combo + 1) : 1;
       g.lastCatch = g.time;
-      let gained = 0;
-      for (const it of caught) {
-        if (it.def.bad) continue;
-        gained += it.def.mg * g.combo;
-        g.food = Math.min(100, g.food + it.def.food);
-        chew = Math.max(chew, it.def.chew);
+      for (const p of caught) {
+        if (verdict(p) === 'bad') continue;
+        gained += p.def.mg * g.combo;
+        g.food = Math.min(100, g.food + p.def.food);
+        g.hp = Math.min(100, g.hp + p.def.food * .2);
+        coins += Math.max(1, Math.round(p.def.food / 3 * (1 + g.stage * .35))) * g.combo;
+        chew = Math.max(chew, clamp(p.def.food / 60, .2, 1.3));
       }
-      g.mass += gained;
-      const label = '+' + fmt(gained) + (g.combo > 1 ? '  ×' + g.combo : '');
-      pop(G.mouth.x, G.mouth.y - 20, label, g.combo > 1 ? C.pollen : C.chloro, g.combo > 2);
-      burst(G.mouth.x, G.mouth.y, C.chloro, 10 + goods * 4);
-      sfx.chomp();
+      g.mass += gained; g.coins += coins; g.earned += coins;
+      g.humansEaten += humans;
+      pop(m, '+' + fmt(gained) + (g.combo > 1 ? '  ×' + g.combo : ''), g.combo > 1 ? 'gold big' : (g.combo > 2 ? 'big' : ''));
+      setTimeout(() => state === 'playing' && pop(m.clone().add(new V3(0, -catchR(), 0)), '+' + coins + ' coins', 'gold'), 160);
+      burst(m, crunchy ? '#9a9f9b' : '#9fd44c', 10 + goods * 4, .03 * g.sCur, 2.2 * g.sCur);
+      crunchy ? sfx.crunch() : sfx.chomp();
       checkStage();
+      checkWar();
     }
-    if (bad === 'sting') {
-      burst(G.mouth.x, G.mouth.y, C.pollen, 12);
-      sfx.sting();
+    if (bad === 'wasp') {
+      burst(m, '#f4c44f', 12, .025 * g.sCur, 2 * g.sCur);
+      sfx.sting(); g.combo = 0; g.shake = .4;
       g.jaw = 'stunned'; g.jawT = .8;
-      loseLeaf('Stung! A leaf wilts', G.mouth.x, G.mouth.y - 28);
+      hurt(PREY.wasp.hurt, m, 'Stung!', 'sting');
     } else if (bad === 'pebble') {
-      sfx.clank();
-      g.food = Math.max(0, g.food - 8); g.shake = .3; g.combo = 0;
-      g.jaw = 'stunned'; g.jawT = 1.4;
-      pop(G.mouth.x, G.mouth.y - 28, 'Pebble! Jaws stunned', C.mist, true);
-    } else {
+      sfx.clank(); g.food = Math.max(0, g.food - 8); g.shake = .3; g.combo = 0;
+      g.jaw = 'stunned'; g.jawT = PREY.pebble.stun;
+      pop(m, 'Pebble! Jaws stunned', 'dim big');
+    } else if (g.jaw === 'snapping') {
       g.jaw = 'chewing'; g.jawT = chew;
     }
   }
@@ -357,374 +923,361 @@
   function checkStage() {
     while (g.stage < STAGES.length - 1 && g.mass >= STAGES[g.stage + 1].at) {
       g.stage++;
-      g.leaves = Math.min(3, g.leaves + 1);
-      g.banner = { text: STAGES[g.stage].name, t: 0 };
+      g.sTarget = sOf(g.stage);
+      g.hp = Math.min(100, g.hp + 35);
+      const st = STAGES[g.stage];
+      banner('It grew · ' + st.span + ' trap', st.name, st.sub, false, true);
       sfx.grow();
     }
   }
-
-  function spawn() {
-    const pool = Object.entries(PREY).filter(([, d]) => d.stage <= g.stage);
-    const weights = pool.map(([k, d]) => d.w + (k === 'wasp' ? g.stage * .8 : 0) + (k === 'pebble' ? g.stage * .3 : 0));
-    let roll = Math.random() * weights.reduce((a, b) => a + b, 0);
-    let idx = 0;
-    while (roll > weights[idx]) { roll -= weights[idx]; idx++; }
-    const [k, d] = pool[idx];
-    const fromLeft = Math.random() < .5;
-    const sk = sizeK();
-    const it = { k, def: d, r: d.r * sk, t: rand(0, 10), face: fromLeft ? 1 : -1, rot: 0 };
-    if (d.thrown) {
-      it.g = H * 1.1;
-      it.x = fromLeft ? -20 : W + 20;
-      it.y = H * rand(.75, .95);
-      const peakY = H * rand(.12, .5);
-      it.vy = -Math.sqrt(2 * it.g * (it.y - peakY));
-      const flight = 2 * -it.vy / it.g;
-      it.vx = (fromLeft ? 1 : -1) * W * rand(.45, .85) / flight;
-      it.spin = rand(-6, 6);
-      if (k === 'pebble') it.shape = Array.from({ length: 7 }, () => rand(.75, 1.1));
-    } else {
-      const b = base(), R = reach();
-      it.x = fromLeft ? -30 : W + 30;
-      it.y0 = clamp(b.y - R * rand(.3, 1.15), H * .1, b.y - 70);
-      it.y = it.y0;
-      it.vx = it.face * d.speed * rand(.8, 1.2) * sk;
-      it.amp = rand(8, 46) * sk; it.freq = rand(1.4, 3.8); it.jv = 0;
+  function checkWar() {
+    if (g.war || g.stage < HUMAN_STAGE) return;
+    if (g.humansEaten >= 4 || g.mass >= 4e8) {
+      g.war = true;
+      banner('You ate ' + g.humansEaten + (g.humansEaten === 1 ? ' human' : ' humans'), 'The humans declared war', 'Soldiers are coming. Eat them before they cut you down.', true);
+      sfx.siren();
+      for (const p of g.prey) if (p.type === 'tourist') { p.mode = 'flee'; p.speed *= 1.8; }
+      const a = g.camAng + Math.PI;
+      for (let j = 0; j < 4; j++) spawnPrey('soldier', { angle: a + rand(-.4, .4), extra: j });
     }
-    g.items.push(it);
   }
 
-  function update(dt, live) {
-    g.time += dt;
-    g.scale += (stageScale(g.stage) - g.scale) * Math.min(1, dt * 3);
-    g.sway = Math.sin(g.time * 1.3) * 10 * g.scale * sizeK();
-
-    if (live) {
-      const kv = 650 * dt;
-      if (keys.ArrowLeft || keys.a) target.x -= kv;
-      if (keys.ArrowRight || keys.d) target.x += kv;
-      if (keys.ArrowUp || keys.w) target.y -= kv;
-      if (keys.ArrowDown || keys.s) target.y += kv;
-      target.x = clamp(target.x, 0, W); target.y = clamp(target.y, 0, H);
-    } else {
-      // Demo motion behind the title card
-      target.x = W / 2 + Math.sin(g.time * .7) * W * .2;
-      target.y = H * .55 + Math.sin(g.time * 1.1) * H * .08;
+  // ---------- Shop ----------
+  function buy(id) {
+    if (state !== 'playing') return;
+    const cost = SHOP[id].cost(g.stage);
+    const where = mouthPos();
+    if (g.coins < cost) { pop(where, 'Need ' + (cost - g.coins) + ' more coins', 'dim'); return; }
+    g.coins -= cost; sfx.coin();
+    if (id === 'meal') {
+      g.food = Math.min(100, g.food + 60);
+      g.jaw = 'chewing'; g.jawT = .6; g.open = 0;
+      burst(where, '#b8323f', 16, .03 * g.sCur, 2 * g.sCur);
+      pop(where, 'Free meal · +60 fullness', 'gold big');
+      sfx.chomp();
+    } else if (id === 'swarm') {
+      const type = SWARMS[g.stage];
+      if (PREY[type].kind === 'ground') {
+        const a = g.camAng + Math.PI + rand(-.8, .8);
+        for (let j = 0; j < 10; j++) spawnPrey(type, { bus: true, angle: a + rand(-.15, .15), extra: j * .8 });
+        pop(where, 'A tour bus is pulling up', 'gold big');
+      } else {
+        for (let j = 0; j < 18; j++) spawnPrey(type, { orbit: true });
+        pop(where, SWARM_NAMES[g.stage] + ' incoming', 'gold big');
+      }
+    } else if (id === 'heal') {
+      g.hp = Math.min(100, g.hp + 50);
+      burst(g.head, '#e3f1b6', 14, .03 * g.sCur, 1.6 * g.sCur);
+      pop(where, 'Regrown · +50 health', 'gold big');
     }
+  }
 
-    // Head follows the pointer within reach of the stalk
-    const b = base();
-    let tx = target.x - b.x, ty = target.y - b.y;
-    const d = Math.hypot(tx, ty), R = reach();
-    if (d > R) { tx *= R / d; ty *= R / d; }
-    const hx = clamp(b.x + tx, 24, W - 24), hy = Math.min(b.y - 60, b.y + ty);
-    const k = Math.min(1, dt * (g.jaw === 'stunned' ? 2.5 : 10));
-    g.head.x += (hx - g.head.x) * k; g.head.y += (hy - g.head.y) * k;
+  // ---------- Update ----------
+  function aimPoint(live) {
+    const Rr = R();
+    if (!live) {
+      const t = g.time;
+      g.aimTarget = null;
+      return new V3(Math.sin(t * .6) * Rr * .6, Rr * (.55 + .15 * Math.sin(t * 1.1)), Math.cos(t * .4) * Rr * .3);
+    }
+    // Aim assist: lock onto the prey closest to the cursor on screen
+    const fovK = (H / 2) / Math.tan(camera.fov * Math.PI / 360);
+    let bestP = null, bd = Infinity;
+    for (const p of g.prey) {
+      if (p.dead) continue;
+      const c = centerOf(p);
+      if (Math.hypot(c.x, c.z) > Rr * 1.25) continue;
+      const s = toScreen(c);
+      if (!s.ok) continue;
+      const rpx = p.r / Math.max(.01, camera.position.distanceTo(c)) * fovK;
+      const d = Math.hypot(s.x - mouse.x, s.y - mouse.y);
+      if (d < 42 + rpx && d < bd) { bd = d; bestP = p; }
+    }
+    g.aimTarget = bestP;
+    if (bestP) return centerOf(bestP);
+    // Otherwise aim at the cursor on a camera-facing plane through the plant, or on the ground
+    const ndc = new T.Vector2(mouse.x / W * 2 - 1, -(mouse.y / H) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const n = new V3(camera.position.x, 0, camera.position.z).normalize();
+    const plane = new T.Plane(n, 0);
+    const hit = new V3();
+    if (ray.ray.intersectPlane(plane, hit)) {
+      if (hit.y < 0) { ray.ray.intersectPlane(new T.Plane(new V3(0, 1, 0), 0), hit); hit.y = .3 * g.sCur; }
+      return hit;
+    }
+    return new V3(0, Rr * .6, 0);
+  }
+
+  function updatePlant(dt, live) {
+    const s = g.sCur, Rr = R();
+    const aim = aimPoint(live);
+    // head goes where the mouth can reach the aim point
+    const baseTop = new V3(0, .15 * s, 0);
+    const toAim = aim.clone().sub(baseTop);
+    const want = toAim.clone().normalize();
+    const headT = aim.clone().addScaledVector(want, -L() * .55);
+    const v = headT.sub(baseTop);
+    const len = v.length();
+    if (len > Rr) v.multiplyScalar(Rr / len);
+    if (len < .6 * s) v.setLength(.6 * s);
+    const ht = baseTop.clone().add(v);
+    ht.y = Math.max(.28 * s, ht.y);
+    const k = Math.min(1, dt * (g.jaw === 'stunned' ? 2.5 : 9));
+    g.head.lerp(ht, k);
+    const d = aim.clone().sub(g.head);
+    if (d.length() > .05 * s) {
+      d.normalize(); d.y = clamp(d.y, -.85, .9); d.normalize();
+      g.dir.lerp(d, Math.min(1, dt * 8)).normalize();
+    }
 
     if (live && g.snapQ > 0) {
       g.snapQ -= dt;
-      if (Math.hypot(hx - g.head.x, hy - g.head.y) < 14 || g.snapQ <= 0) { g.snapQ = 0; trySnap(); }
+      if (g.head.distanceTo(ht) < .08 * s || g.snapQ <= 0) { g.snapQ = 0; trySnap(); }
     }
-
     switch (g.jaw) {
       case 'open': g.open = Math.min(1, g.open + dt * 6); break;
       case 'snapping':
         g.jawT += dt; g.open = Math.max(0, 1 - g.jawT / .08);
-        if (g.jawT >= .08) resolveSnap();
+        if (g.jawT >= .08) { if (live) resolveSnap(); else { g.jaw = 'cooldown'; g.jawT = .3; } }
         break;
       default:
         g.jawT -= dt;
         g.open = g.jaw === 'stunned' ? .3 + Math.sin(g.time * 22) * .08 : 0;
         if (g.jawT <= 0) g.jaw = 'open';
     }
-    if (state === 'over') return;
+  }
 
-    // Fullness drains faster as the plant grows and the night goes on
-    if (live) {
-      g.food -= (2.4 + g.stage * .75) * (1 + g.time / 300) * dt;
-      if (g.food <= 0) {
-        g.food = 0; g.starveT += dt;
-        if (g.starveT >= 2.5) { g.starveT = 0; loseLeaf('Starving! A leaf wilts', W / 2, base().y - 60); }
-      } else g.starveT = 0;
-    }
-
-    g.spawnT -= dt;
-    if (g.spawnT <= 0) { spawn(); g.spawnT = Math.max(.32, 1.05 - g.stage * .13) * rand(.6, 1.4); }
-
-    for (const it of g.items) {
-      it.t += dt;
-      if (it.def.thrown) {
-        it.vy += it.g * dt; it.x += it.vx * dt; it.y += it.vy * dt; it.rot += it.spin * dt;
+  function updatePrey(dt, live) {
+    const Rr = R();
+    for (const p of g.prey) {
+      if (p.dead) continue;
+      p.t += dt; p.life += dt;
+      const d = p.def;
+      for (const w of p.wings) w.rotation.z = w.userData.sd * Math.sin(p.t * p.flap) * .9;
+      if (d.kind === 'fly') {
+        if (p.orbit) {
+          p.orbit.ang += p.orbit.w * dt;
+          if (p.life > p.orbit.until) p.orbit.rad += Rr * .5 * dt;
+          const prev = p.pos.clone();
+          p.pos.set(Math.sin(p.orbit.ang) * p.orbit.rad, p.orbit.y + Math.sin(p.t * 2) * p.r * 2, Math.cos(p.orbit.ang) * p.orbit.rad);
+          p.grp.lookAt(p.pos.clone().add(p.pos.clone().sub(prev)));
+          if (p.orbit.rad > Rr * 2.5) removePrey(p);
+        } else {
+          p.base.addScaledVector(p.vel, dt);
+          if (p.type === 'fly' || p.type === 'golden') { p.base.y += Math.sin(p.t * 7) * p.r * 3 * dt; }
+          p.pos.copy(p.base); p.pos.y += Math.sin(p.t * p.wob.f) * p.wob.amp;
+          p.grp.lookAt(p.pos.clone().add(p.vel));
+          if (p.life > 3 && Math.hypot(p.pos.x, p.pos.z) > Rr * 2.2 + 2) removePrey(p);
+        }
+      } else if (d.kind === 'thrown') {
+        p.vel.y -= p.G * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        p.grp.rotation.x += p.spin.x * dt; p.grp.rotation.y += p.spin.y * dt;
+        if (p.pos.y < -1) removePrey(p);
       } else {
-        it.x += it.vx * dt;
-        if (it.k === 'fly' || it.k === 'golden') { it.jv = clamp(it.jv + rand(-500, 500) * dt, -90, 90); it.y0 += it.jv * dt; }
-        it.y = it.y0 + Math.sin(it.t * it.freq) * it.amp;
+        updateWalker(p, dt, live, Rr);
       }
+      if (!p.dead && p.life > p.maxLife) removePrey(p);
     }
-    g.items = g.items.filter((it) => it.x > -90 && it.x < W + 90 && it.y < H + 90);
-
-    for (const p of g.parts) { p.t += dt; p.vy += 500 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
-    g.parts = g.parts.filter((p) => p.t < p.life);
-    for (const p of g.pops) { p.t += dt; p.y -= 34 * dt; }
-    g.pops = g.pops.filter((p) => p.t < 1.2);
-    if (g.banner) { g.banner.t += dt; if (g.banner.t > 2.4) g.banner = null; }
-    g.shake = Math.max(0, g.shake - dt);
-    for (let i = 0; i < 3; i++) g.leafDroop[i] += ((i < g.leaves ? 0 : 1) - g.leafDroop[i]) * Math.min(1, dt * 4);
+    g.prey = g.prey.filter((p) => !p.dead);
   }
 
-  // ---------- Drawing ----------
-  function drawLobe(L, Hh, sign, op) {
-    ctx.save();
-    ctx.rotate(sign * op);
-    const a0 = sign < 0 ? Math.PI : 0, a1 = sign < 0 ? Math.PI * 2 : Math.PI;
-    // Outer shell
-    const sh = ctx.createLinearGradient(0, 0, 0, sign * Hh);
-    sh.addColorStop(0, C.chloro); sh.addColorStop(1, C.moss);
-    ctx.fillStyle = sh;
-    ctx.beginPath(); ctx.ellipse(L / 2, 0, L / 2, Hh, 0, a0, a1); ctx.closePath(); ctx.fill();
-    // Red inner lining near the margin
-    ctx.fillStyle = C.maw;
-    ctx.beginPath(); ctx.ellipse(L / 2, 0, L * .44, Hh * .55, 0, a0, a1); ctx.closePath(); ctx.fill();
-    // Trigger hairs
-    ctx.fillStyle = 'rgba(80,10,25,.8)';
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath(); ctx.arc(L * (.3 + i * .18), sign * Hh * .22, Math.max(1, L * .025), 0, Math.PI * 2); ctx.fill();
-    }
-    // Cilia along the margin, offset so the two lobes interlock
-    const n = 7, len = L * .24, wdt = L * .035;
-    ctx.fillStyle = C.cilia;
-    for (let i = 0; i < n; i++) {
-      const x = L * (.08 + ((i + (sign > 0 ? .5 : 0)) / n) * .86);
-      ctx.beginPath(); ctx.moveTo(x - wdt, 0); ctx.lineTo(x + wdt, 0); ctx.lineTo(x, -sign * len); ctx.closePath(); ctx.fill();
-    }
-    ctx.strokeStyle = 'rgba(12,24,26,.35)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.ellipse(L / 2, 0, L / 2, Hh, 0, a0, a1); ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawPlant(G) {
-    const { b, h, s, L, cp, ang } = G;
-    // Rosette leaves: these are the plant's lives
-    const leafAngles = [-Math.PI + .35, -.35, -Math.PI / 2 - .25];
-    const order = [2, 0, 1];
-    for (const i of order) {
-      const dead = g.leafDroop[i];
-      const len = 62 * s;
-      ctx.save();
-      ctx.translate(b.x, b.y);
-      const a = leafAngles[i];
-      ctx.rotate(a + (a < -Math.PI / 2 ? -1 : 1) * dead * .55);
-      ctx.fillStyle = dead > .5 ? '#6f5530' : C.chloro;
-      ctx.globalAlpha = 1 - dead * .25;
-      ctx.beginPath(); ctx.ellipse(len / 2, 0, len / 2, len * (.17 - dead * .05), 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = dead > .5 ? '#4a3920' : C.moss; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(len * .92, 0); ctx.stroke();
-      ctx.restore();
-    }
-    ctx.globalAlpha = 1;
-
-    // Stalk
-    ctx.lineCap = 'round';
-    const stroke = (w, col) => {
-      ctx.strokeStyle = col; ctx.lineWidth = w;
-      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.quadraticCurveTo(cp.x, cp.y, h.x, h.y); ctx.stroke();
-    };
-    stroke(13 * s, C.moss);
-    stroke(8 * s, C.chloro);
-    stroke(2 * s, 'rgba(255,255,255,.2)');
-
-    // Catch zone hint while the trap is open
-    if (g.jaw === 'open' && state !== 'title') {
-      ctx.save();
-      ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(214,231,221,.18)'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(G.mouth.x, G.mouth.y, G.catchR, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
-
-    // Trap
-    ctx.save();
-    ctx.translate(h.x, h.y); ctx.rotate(ang);
-    const op = g.open * .62;
-    const bulge = g.jaw === 'chewing' ? 1 + Math.sin(g.time * 18) * .07 : 1;
-    drawLobe(L, L * .42 * bulge, 1, op);
-    drawLobe(L, L * .42 * bulge, -1, op);
-    ctx.fillStyle = C.moss;
-    ctx.beginPath(); ctx.arc(0, 0, 6 * s, 0, Math.PI * 2); ctx.fill();
-    // Drool
-    if (g.jaw === 'open' && g.food < 40) {
-      const dy = ((g.time * 30) % 26);
-      ctx.fillStyle = 'rgba(227,241,182,.55)';
-      ctx.save(); ctx.rotate(op);
-      ctx.beginPath(); ctx.arc(L * .7, L * .1 + dy * s * .5, 2.2 * s, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    }
-    ctx.restore();
-  }
-
-  function wings(rx, ry, flap, color, offY = 0) {
-    ctx.fillStyle = color;
-    const sc = .35 + Math.abs(Math.sin(flap)) * .65;
-    ctx.save(); ctx.scale(1, sc);
-    ctx.beginPath(); ctx.ellipse(-rx * .2, -ry + offY, rx, ry, -.3, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
-
-  function drawItem(it) {
-    const r = it.r;
-    ctx.save();
-    ctx.translate(it.x, it.y);
-    if (it.def.thrown) ctx.rotate(it.rot); else ctx.scale(it.face, 1);
-    switch (it.k) {
-      case 'fly':
-      case 'golden': {
-        if (it.k === 'golden') { ctx.shadowColor = C.pollen; ctx.shadowBlur = 16; }
-        wings(r * .9, r * .7, it.t * 55, it.k === 'golden' ? 'rgba(244,196,79,.55)' : 'rgba(214,231,240,.55)');
-        ctx.fillStyle = it.k === 'golden' ? C.pollen : '#1d2224';
-        ctx.beginPath(); ctx.ellipse(0, 0, r, r * .6, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = it.k === 'golden' ? '#fff3c4' : '#a33';
-        ctx.beginPath(); ctx.arc(r * .75, -r * .1, r * .32, 0, Math.PI * 2); ctx.fill();
-        break;
-      }
-      case 'moth': {
-        wings(r * 1.1, r * .9, it.t * 18, '#c9b18c');
-        ctx.fillStyle = '#8b7558';
-        ctx.beginPath(); ctx.ellipse(0, 0, r * .8, r * .32, 0, 0, Math.PI * 2); ctx.fill();
-        break;
-      }
-      case 'beetle': {
-        ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5;
-        for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(i * r * .4, 0); ctx.lineTo(i * r * .5, r * .9 + Math.sin(it.t * 20 + i) * 2); ctx.stroke(); }
-        ctx.fillStyle = '#2f58c9';
-        ctx.beginPath(); ctx.ellipse(0, 0, r, r * .72, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,.35)';
-        ctx.beginPath(); ctx.ellipse(-r * .2, -r * .3, r * .45, r * .16, -.2, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#122';
-        ctx.beginPath(); ctx.arc(r * .95, 0, r * .35, 0, Math.PI * 2); ctx.fill();
-        break;
-      }
-      case 'wasp': {
-        wings(r * .9, r * .65, it.t * 60, 'rgba(214,231,240,.6)');
-        ctx.fillStyle = C.pollen;
-        ctx.beginPath(); ctx.ellipse(0, 0, r * 1.15, r * .55, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#141414';
-        for (let i = -1; i <= 1; i++) ctx.fillRect(i * r * .45 - r * .1, -r * .55, r * .2, r * 1.1);
-        ctx.beginPath(); ctx.moveTo(-r * 1.1, -r * .12); ctx.lineTo(-r * 1.6, 0); ctx.lineTo(-r * 1.1, r * .12); ctx.fill();
-        ctx.beginPath(); ctx.arc(r * 1.1, 0, r * .38, 0, Math.PI * 2); ctx.fill();
-        break;
-      }
-      case 'bat': {
-        const f = Math.sin(it.t * 14);
-        ctx.fillStyle = '#3b2a45';
-        for (const sd of [-1, 1]) {
-          ctx.beginPath(); ctx.moveTo(0, 0);
-          ctx.lineTo(sd * r * 1.6, -r * .9 * f);
-          ctx.lineTo(sd * r * 1.2, r * .1 - r * .4 * f);
-          ctx.lineTo(sd * r * .7, r * .4 - r * .2 * f);
-          ctx.closePath(); ctx.fill();
+  function updateWalker(p, dt, live, Rr) {
+    const dist = Math.hypot(p.pos.x, p.pos.z);
+    let moving = true;
+    const toward = new V3(-p.pos.x, 0, -p.pos.z).normalize();
+    if (p.mode === 'cross') {
+      p.pos.addScaledVector(p.vel, dt);
+      p.grp.rotation.y = Math.atan2(p.vel.x, p.vel.z);
+      if (p.life > 4 && dist > p.spawnR * 1.05) removePrey(p);
+    } else if (p.mode === 'approach') {
+      p.pos.addScaledVector(toward, p.speed * dt);
+      p.grp.rotation.y = Math.atan2(toward.x, toward.z);
+      if (dist <= p.stand) { p.mode = 'hold'; p.wanderT = 0; }
+    } else if (p.mode === 'hold') {
+      if (p.type === 'tourist') {
+        p.wanderT -= dt;
+        if (p.wanderT <= 0) { p.wanderT = rand(2, 4); p.wdir = rand(0, Math.PI * 2); p.walking = Math.random() < .5; }
+        if (p.walking) {
+          const wv = new V3(Math.sin(p.wdir), 0, Math.cos(p.wdir));
+          p.pos.addScaledVector(wv, p.speed * .35 * dt);
+          p.grp.rotation.y = p.wdir;
+        } else { moving = false; p.grp.rotation.y = Math.atan2(toward.x, toward.z); }
+        if (p.hasCam && Math.random() < dt * .25) {
+          const c = new V3(0, 1.5, .3).applyMatrix4(p.grp.matrixWorld);
+          flash(c, '#ffffff', .35, .1);
         }
-        ctx.beginPath(); ctx.ellipse(0, 0, r * .45, r * .55, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = C.pollen;
-        ctx.beginPath(); ctx.arc(r * .15, -r * .2, 1.6, 0, Math.PI * 2); ctx.fill();
-        break;
-      }
-      case 'pigeon': {
-        ctx.fillStyle = '#8c94a0';
-        ctx.beginPath(); ctx.ellipse(0, 0, r, r * .55, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(r * .85, -r * .35, r * .35, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#e39a3b';
-        ctx.beginPath(); ctx.moveTo(r * 1.15, -r * .4); ctx.lineTo(r * 1.45, -r * .3); ctx.lineTo(r * 1.15, -r * .22); ctx.fill();
-        ctx.fillStyle = '#6a7380';
-        ctx.save(); ctx.scale(1, Math.sin(it.t * 10));
-        ctx.beginPath(); ctx.ellipse(-r * .1, -r * .6, r * .7, r * .5, -.2, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-        break;
-      }
-      case 'steak': {
-        ctx.fillStyle = '#f0ece0';
-        ctx.fillRect(r * .4, -r * .14, r * 1.1, r * .28);
-        ctx.beginPath(); ctx.arc(r * 1.5, -r * .2, r * .2, 0, Math.PI * 2); ctx.arc(r * 1.5, r * .2, r * .2, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#b8323f';
-        ctx.beginPath(); ctx.ellipse(0, 0, r, r * .75, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#f2b8b0'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.ellipse(-r * .1, 0, r * .55, r * .35, .3, 0, Math.PI * 1.4); ctx.stroke();
-        break;
-      }
-      case 'pebble': {
-        ctx.fillStyle = '#7d8580';
-        ctx.beginPath();
-        it.shape.forEach((m, i) => { const a = (i / it.shape.length) * Math.PI * 2; const px = Math.cos(a) * r * m, py = Math.sin(a) * r * m; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,.18)';
-        ctx.beginPath(); ctx.arc(-r * .3, -r * .3, r * .3, 0, Math.PI * 2); ctx.fill();
-        break;
-      }
-    }
-    ctx.restore();
-  }
-
-  function render() {
-    ctx.save();
-    if (g.shake > 0 && !reduceMotion) ctx.translate(rand(-1, 1) * g.shake * 14, rand(-1, 1) * g.shake * 14);
-    ctx.drawImage(bg, 0, 0, W, H);
-    const G = geom();
-
-    for (const it of g.items) drawItem(it);
-    // Highlight whatever would be caught right now
-    if (g.jaw === 'open' && state === 'playing') {
-      for (const it of g.items) {
-        if (Math.hypot(it.x - G.mouth.x, it.y - G.mouth.y) < G.catchR + it.r * .6) {
-          ctx.strokeStyle = it.def.bad ? C.maw : C.pollen; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.arc(it.x, it.y, it.r * 1.6, 0, Math.PI * 2); ctx.stroke();
+        p.stay -= dt;
+        if (p.stay <= 0) { p.mode = 'flee'; }
+      } else {
+        moving = false;
+        p.grp.rotation.y = Math.atan2(toward.x, toward.z);
+        if (live && g.war && p.gun) {
+          p.fireT -= dt;
+          if (p.fireT <= 0) {
+            fire(p);
+            if (p.def.gun === 'mg') { if (p.burst > 0) { p.burst--; p.fireT = .13; } else { p.burst = 5; p.fireT = rand(2, 3.5); } }
+            else p.fireT = p.def.gun === 'cannon' ? rand(4, 6) : rand(2, 4);
+          }
         }
       }
+    } else if (p.mode === 'flee') {
+      p.pos.addScaledVector(toward, -p.speed * dt);
+      p.grp.rotation.y = Math.atan2(-toward.x, -toward.z);
+      if (dist > p.spawnR * 1.05) removePrey(p);
     }
-    drawPlant(G);
+    const sw = moving ? Math.sin(p.t * 9) * .6 : 0;
+    p.legs.forEach((l, i) => { l.rotation.x = (i % 2 ? 1 : -1) * sw; });
+    if (p.type === 'tourist') p.arms.forEach((a, i) => { a.rotation.x = (i % 2 ? -1 : 1) * sw * .8; });
+    if (moving && (p.type === 'jeep' || p.type === 'tank')) p.grp.position.y = Math.abs(Math.sin(p.t * 14)) * .04;
+  }
+
+  function updateShots(dt) {
+    for (const s of g.shots) {
+      s.t += dt;
+      const u = Math.min(1, s.t / s.dur);
+      s.m.position.lerpVectors(s.from, s.to, u);
+      if (s.arc) s.m.position.y += Math.sin(Math.PI * u) * s.arc;
+      s.m.lookAt(s.to);
+      if (u >= 1) {
+        s.done = true; scene.remove(s.m);
+        if (s.cannon) { burst(s.to, '#ff9a3c', 14, .05 * g.sCur, 2.5 * g.sCur, true); burst(s.to, '#555', 8, .06 * g.sCur, 1.2 * g.sCur); g.shake = Math.max(g.shake, .35); }
+        else burst(s.to, '#ffe08a', 3, .015 * g.sCur, 1.5 * g.sCur, true);
+        hurt(s.dmg, s.to, s.cannon ? '-' + s.dmg + ' shell' : null, 'war');
+      }
+    }
+    g.shots = g.shots.filter((s) => !s.done);
+  }
+
+  function update(dt, live) {
+    g.time += dt;
+    g.sCur += (g.sTarget - g.sCur) * Math.min(1, dt * 1.5);
+    g.sway = Math.sin(g.time * 1.3) * .15 * g.sCur;
+
+    if (live) {
+      const kv = 650 * dt;
+      if (keys.ArrowLeft || keys.a) mouse.x -= kv;
+      if (keys.ArrowRight || keys.d) mouse.x += kv;
+      if (keys.ArrowUp || keys.w) mouse.y -= kv;
+      if (keys.ArrowDown || keys.s) mouse.y += kv;
+      mouse.x = clamp(mouse.x, 0, W); mouse.y = clamp(mouse.y, 0, H);
+      if (keys.q) g.camAng -= dt * 1.2;
+      if (keys.e) g.camAng += dt * 1.2;
+    } else g.camAng += dt * .08;
+
+    updatePlant(dt, live);
+
+    if (live) {
+      g.food -= (2.4 + g.stage * .5) * (1 + g.time / 400) * dt;
+      if (g.food <= 0) { g.food = 0; hurt(7 * dt, null, null, 'starve'); }
+      if (!g.announcedHumans && g.stage >= HUMAN_STAGE) g.announcedHumans = true;
+    }
+    g.spawnT -= dt;
+    if (g.spawnT <= 0) { spawnTick(); g.spawnT = Math.max(.35, 1 - g.stage * .06) * rand(.6, 1.4); }
+    updatePrey(dt, live);
+    updateShots(dt);
 
     for (const p of g.parts) {
-      ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      p.t += dt; p.v.y -= p.grav * dt;
+      p.m.position.addScaledVector(p.v, dt);
+      p.m.scale.setScalar(p.s0 * (1 - p.t / p.life * .6));
+      if (p.t >= p.life) { p.done = true; scene.remove(p.m); }
     }
-    ctx.globalAlpha = 1;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    for (const p of g.pops) {
-      ctx.globalAlpha = 1 - Math.max(0, p.t - .6) / .6;
-      ctx.font = `700 ${p.big ? 20 : 15}px "JetBrains Mono", ui-monospace, monospace`;
-      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(12,24,26,.8)';
-      ctx.strokeText(p.text, p.x, p.y); ctx.fillStyle = p.color; ctx.fillText(p.text, p.x, p.y);
+    g.parts = g.parts.filter((p) => !p.done);
+    g.shake = Math.max(0, g.shake - dt);
+    g.hitFlash = Math.max(0, g.hitFlash - dt);
+  }
+
+  // ---------- Render ----------
+  const tmpCol = new T.Color();
+  function syncScene() {
+    const s = g.sCur, Rr = R();
+    plantBase.scale.setScalar(s);
+    head.position.copy(g.head);
+    head.scale.setScalar(s);
+    head.up.set(0, 1, 0);
+    head.lookAt(g.head.clone().add(g.dir));
+    const op = g.open * .75 + (g.jaw === 'chewing' ? Math.abs(Math.sin(g.time * 16)) * .08 : 0);
+    hingeU.rotation.x = -op; hingeL.rotation.x = op;
+
+    const p0 = new V3(0, .1 * s, 0);
+    const p3 = g.head.clone().addScaledVector(g.dir, -.04 * s);
+    const p1 = new V3(g.sway, g.head.y * .45, g.sway * .5);
+    const p2 = p3.clone().addScaledVector(g.dir, -L() * 1.2);
+    stalkCurve = new T.CubicBezierCurve3(p0, p1, p2, p3);
+    stalk.geometry.dispose();
+    stalk.geometry = new T.TubeGeometry(stalkCurve, 28, .065 * s, 8, false);
+
+    // Health shows in the plant: it browns as it gets hurt and flashes red when hit
+    const wilt = (1 - g.hp / 100) * .75;
+    matLobe.color.copy(GREEN.lobe).lerp(BROWN, wilt);
+    matStalk.color.copy(GREEN.stalk).lerp(BROWN, wilt);
+    matLeaf.color.copy(GREEN.leaf).lerp(BROWN, wilt);
+    matLobe.emissive.setRGB(g.hitFlash * 2, 0, 0);
+    matStalk.emissive.setRGB(g.hitFlash * 1.5, 0, 0);
+
+    const m = mouthPos(), cr = catchR();
+    zoneRing.visible = g.jaw === 'open' && state === 'playing';
+    zoneRing.position.copy(m); zoneRing.scale.setScalar(cr * 2.2);
+    const tgt = g.aimTarget && !g.aimTarget.dead ? g.aimTarget : null;
+    lockRing.visible = !!tgt && state === 'playing';
+    if (tgt) {
+      lockRing.position.copy(centerOf(tgt));
+      lockRing.scale.setScalar(Math.max(tgt.r * 3, cr * .8));
+      const v = verdict(tgt);
+      lockRing.material.color.set(v === 'ok' ? '#f4c44f' : v === 'bad' ? '#e2425f' : '#8fac9f');
     }
-    ctx.globalAlpha = 1;
-    if (g.banner) {
-      const t = g.banner.t;
-      const a = t < .3 ? t / .3 : t > 1.8 ? 1 - (t - 1.8) / .6 : 1;
-      const sc = reduceMotion ? 1 : .8 + Math.min(1, t / .3) * .2;
-      ctx.save(); ctx.globalAlpha = Math.max(0, a);
-      ctx.translate(W / 2, H * .3); ctx.scale(sc, sc);
-      ctx.fillStyle = C.pollen; ctx.font = '600 13px "Bricolage Grotesque", system-ui, sans-serif';
-      ctx.fillText('IT GREW', 0, -34);
-      ctx.font = `${Math.round(Math.min(W * .11, 68))}px "Rubik Wet Paint", Impact, sans-serif`;
-      ctx.lineWidth = 8; ctx.strokeStyle = C.bog; ctx.strokeText(g.banner.text, 0, 8);
-      ctx.fillStyle = C.chloro; ctx.fillText(g.banner.text, 0, 8);
-      ctx.restore();
+
+    // Camera pulls back as the plant grows
+    const D = camDistOf(Rr), h = Rr * .62 + .5;
+    const sh = g.shake > 0 && !reduceMotion ? g.shake * .06 * Rr : 0;
+    camera.position.set(Math.sin(g.camAng) * D + rand(-sh, sh), h + rand(-sh, sh), Math.cos(g.camAng) * D);
+    camera.lookAt(0, Rr * .42, 0);
+    scene.fog.near = D * .9; scene.fog.far = D * 3.6 + 40;
+    moon.position.copy(camera.position).add(new V3(-Math.sin(g.camAng + .6), .38, -Math.cos(g.camAng + .6)).normalize().multiplyScalar(1500));
+    sun.position.set(Rr * 1.2 + 3, Rr * 2.4 + 6, Rr * .6 + 2);
+    const sc = sun.shadow.camera, ext = Rr * 2.6 + 4;
+    if (Math.abs(sc.right - ext) > .5) {
+      sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.near = .5; sc.far = Rr * 8 + 40;
+      sc.updateProjectionMatrix();
     }
-    ctx.restore();
   }
 
   // ---------- HUD and screens ----------
-  const hud = { stage: $('stageName'), span: $('span'), fill: $('fullness'), meter: $('meter'), mass: $('mass') };
+  const hud = {
+    stage: $('stageName'), span: $('span'), food: $('fullness'), foodM: $('foodMeter'), hp: $('health'), hpM: $('hpMeter'),
+    mass: $('mass'), coins: $('coins'), war: $('warTag'),
+  };
+  const shopEls = {
+    meal: { btn: $('buy-meal'), cost: $('cost-meal') },
+    swarm: { btn: $('buy-swarm'), cost: $('cost-swarm'), name: $('name-swarm') },
+    heal: { btn: $('buy-heal'), cost: $('cost-heal') },
+  };
   const last = {};
+  function setIf(key, val, fn) { if (last[key] !== val) { last[key] = val; fn(val); } }
   function updateHUD() {
     const st = STAGES[g.stage];
-    if (last.stage !== g.stage) { hud.stage.textContent = st.name; hud.span.textContent = st.span; last.stage = g.stage; }
-    const f = Math.round(g.food);
-    if (last.food !== f) { hud.fill.style.width = f + '%'; hud.fill.classList.toggle('low', f < 25); hud.meter.setAttribute('aria-valuenow', f); last.food = f; }
-    const m = fmt(g.mass);
-    if (last.mass !== m) { hud.mass.textContent = m; last.mass = m; }
+    setIf('stage', g.stage, () => {
+      hud.stage.textContent = st.name; hud.span.textContent = st.span;
+      shopEls.swarm.name.textContent = SWARM_NAMES[g.stage];
+    });
+    setIf('food', Math.round(g.food), (f) => { hud.food.style.width = f + '%'; hud.food.classList.toggle('low', f < 25); hud.foodM.setAttribute('aria-valuenow', f); });
+    setIf('hp', Math.round(g.hp), (f) => { hud.hp.style.width = f + '%'; hud.hp.classList.toggle('low', f < 30); hud.hpM.setAttribute('aria-valuenow', f); });
+    setIf('mass', fmt(g.mass), (m) => { hud.mass.textContent = m; });
+    setIf('coins', g.coins, (c) => { hud.coins.textContent = c.toLocaleString('en-US'); });
+    setIf('war', g.war, (w) => { hud.war.hidden = !w; });
+    for (const id of Object.keys(SHOP)) {
+      const cost = SHOP[id].cost(g.stage);
+      setIf('cost-' + id, cost, (c) => { shopEls[id].cost.textContent = c.toLocaleString('en-US'); });
+      setIf('can-' + id, g.coins >= cost, (ok) => { shopEls[id].btn.classList.toggle('cant', !ok); shopEls[id].btn.setAttribute('aria-disabled', String(!ok)); });
+    }
   }
 
-  const overlay = $('overlay'), card = $('card');
+  const overlay = $('overlay'), card = $('card'), shopEl = $('shop');
   function show(html, onGo) {
     card.innerHTML = html;
     overlay.hidden = false;
+    shopEl.hidden = true;
     const btn = card.querySelector('.go');
     if (btn) { btn.addEventListener('click', onGo); btn.focus({ preventScroll: true }); }
   }
@@ -734,28 +1287,33 @@
     show(`
       <div class="eyebrow">Dionaea muscipula, but enormous</div>
       <h1>Gulper</h1>
-      <p>Your Venus flytrap is hungry, and every meal makes it bigger. Steer the trap, snap at anything edible, and keep the fullness meter from running dry.</p>
+      <p>Your Venus flytrap is hungry, and every meal makes it bigger. Snap up anything that flies, falls or wanders past, earn coins for every bite, and keep growing until the humans come for you.</p>
       <dl class="controls">
-        <dt>Aim</dt><dd>Mouse, drag a finger, or arrow keys</dd>
+        <dt>Aim</dt><dd>Mouse, drag a finger, or arrow keys. The trap locks onto prey near your cursor.</dd>
         <dt>Snap</dt><dd>Click, tap, or Space</dd>
+        <dt>Shop</dt><dd>Buttons along the bottom, or keys 1, 2, 3</dd>
+        <dt>Camera</dt><dd>Q and E turn around the plant</dd>
       </dl>
-      <div class="menu">
-        <span class="eat">Flies</span><span class="eat">Moths</span><span class="eat">Beetles</span><span class="eat">Golden flies</span><span class="eat">Bats</span><span class="eat">Steak</span><span class="eat">Pigeons</span>
-        <span class="avoid">Wasps cost a leaf</span><span class="avoid">Pebbles stun your jaws</span>
-      </div>
-      <p class="fact">A real flytrap only shuts after two trigger hairs are brushed within about 20 seconds, so a raindrop can't fool it. The Gulper is less careful. Its three rosette leaves are your lives; growing a stage regrows one.</p>
-      <button class="go" type="button" id="startBtn">Start feeding</button>
+      <ul class="ladder">
+        <li><b>0 mg</b><span>Flies and moths. Wasps sting and pebbles stun.</span></li>
+        <li><b>1 kg</b><span>Big enough that wasps and pebbles are just snacks.</span></li>
+        <li><b>100 kg</b><span>Tourists arrive to take photos. They're edible.</span></li>
+        <li><b>Later</b><span>Eat too many and the humans declare war: rifles, jeeps, then tanks.</span></li>
+      </ul>
+      <p class="fact">A real flytrap only shuts after two trigger hairs are brushed within about 20 seconds, so a raindrop can't fool it. The Gulper is less careful.</p>
+      <button class="go" type="button">Start feeding</button>
     `, startGame);
   }
 
   function startGame() {
     ensureAudio();
     newGame();
+    for (const k in last) delete last[k];
     state = 'playing';
     overlay.hidden = true;
+    shopEl.hidden = false;
     $('pauseBtn').textContent = 'Pause';
   }
-
   function pause() {
     if (state !== 'playing') return;
     state = 'paused';
@@ -763,60 +1321,76 @@
     show(`
       <div class="eyebrow">Paused</div>
       <h2>Digesting quietly</h2>
-      <p>${fmt(g.mass)} digested so far as a ${STAGES[g.stage].name}.</p>
+      <p>${fmt(g.mass)} digested so far as a ${STAGES[g.stage].name}, with ${g.coins.toLocaleString('en-US')} coins to spend.</p>
       <button class="go" type="button">Resume</button>
     `, resume);
   }
   function resume() {
     if (state !== 'paused') return;
-    state = 'playing'; overlay.hidden = true; $('pauseBtn').textContent = 'Pause';
+    state = 'playing'; overlay.hidden = true; shopEl.hidden = false; $('pauseBtn').textContent = 'Pause';
     ensureAudio();
   }
-
-  function gameOver() {
+  function gameOver(cause) {
     state = 'over';
+    sfx.wilt();
     const isBest = g.mass > best;
     best = Math.max(best, g.mass);
-    try { localStorage.setItem('gulper-best', String(best)); } catch (e) { /* storage unavailable */ }
+    try { localStorage.setItem('gulper3d-best', String(best)); } catch (e) { /* storage unavailable */ }
+    const titles = { war: 'The army cut it down', sting: 'Stung to death', starve: 'The Gulper starved' };
     setTimeout(() => show(`
       <div class="eyebrow">${isBest && g.mass > 0 ? 'New record' : 'Wilted'}</div>
-      <h2>The Gulper wilted</h2>
+      <h2>${titles[cause] || 'The Gulper wilted'}</h2>
       <div class="stats">
         <div><span class="label">Digested</span><strong>${fmt(g.mass)}</strong></div>
-        <div><span class="label">Grew to</span><strong>${STAGES[g.stage].span}</strong></div>
-        <div><span class="label">Best</span><strong>${fmt(best)}</strong></div>
+        <div><span class="label">Grew to</span><strong>${STAGES[g.stage].name}</strong></div>
+        <div><span class="label">Coins earned</span><strong>${g.earned.toLocaleString('en-US')}</strong></div>
+        <div><span class="label">Humans eaten</span><strong>${g.humansEaten}</strong></div>
       </div>
-      <p>It reached the ${STAGES[g.stage].name} stage. ${g.stage < STAGES.length - 1 ? 'Next stage at ' + fmt(STAGES[g.stage + 1].at) + '.' : 'Nothing left to grow into. Only appetite.'}</p>
+      <p>Best so far: ${fmt(best)}. ${g.stage < STAGES.length - 1 ? 'Next stage at ' + fmt(STAGES[g.stage + 1].at) + '.' : 'Nothing left to grow into. Only appetite.'}</p>
       <button class="go" type="button">Plant a new seed</button>
-    `, startGame), 700);
+    `, startGame), 900);
   }
 
   // ---------- Input ----------
+  const cv = renderer.domElement;
   cv.addEventListener('pointermove', (e) => {
-    if (e.pointerType === 'mouse' || e.buttons) { target.x = e.clientX; target.y = e.clientY; }
+    if (e.pointerType === 'mouse' || e.buttons) { mouse.x = e.clientX; mouse.y = e.clientY; }
   });
   cv.addEventListener('pointerdown', (e) => {
     if (state !== 'playing') return;
     e.preventDefault();
-    target.x = e.clientX; target.y = e.clientY;
+    mouse.x = e.clientX; mouse.y = e.clientY;
     g.snapQ = .25;
   });
   window.addEventListener('keydown', (e) => {
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (key === ' ' && state === 'playing') { e.preventDefault(); trySnap(); return; }
     if (key === 'p' || key === 'Escape') { state === 'playing' ? pause() : resume(); return; }
+    if (key === '1') return buy('meal');
+    if (key === '2') return buy('swarm');
+    if (key === '3') return buy('heal');
     if (key.startsWith('Arrow') && state === 'playing') e.preventDefault();
     keys[key] = true;
   });
   window.addEventListener('keyup', (e) => { keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false; });
+  window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
-  window.addEventListener('resize', resize);
   $('pauseBtn').addEventListener('click', () => (state === 'playing' ? pause() : resume()));
   $('muteBtn').addEventListener('click', (e) => {
     muted = !muted;
     e.currentTarget.textContent = muted ? 'Sound off' : 'Sound on';
     if (!muted) ensureAudio();
   });
+  for (const id of Object.keys(SHOP)) shopEls[id].btn.addEventListener('click', () => buy(id));
+
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    renderer.setSize(W, H, false);
+    camera.aspect = W / H;
+    camera.fov = W / H < .8 ? 62 : 50;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
 
   // ---------- Loop ----------
   let prev = performance.now();
@@ -825,13 +1399,14 @@
     prev = now;
     if (state === 'playing') update(dt, true);
     else if (state === 'title') update(dt, false);
-    render();
+    syncScene();
+    renderer.render(scene, camera);
     if (state !== 'title') updateHUD();
     requestAnimationFrame(frame);
   }
 
   function boot(data) {
-    try { best = Number(localStorage.getItem('gulper-best')) || 0; } catch (e) { best = 0; }
+    try { best = Number(localStorage.getItem('gulper3d-best')) || 0; } catch (e) { best = 0; }
     best = Math.max(best, Number(data && data.best) || 0);
     resize();
     newGame();
@@ -839,6 +1414,9 @@
     titleScreen();
     requestAnimationFrame(frame);
   }
+
+  // Test hook for automated checks: jump straight to a stage
+  window.__gulper = { setMass: (mg) => { if (g) { g.mass = mg; checkStage(); checkWar(); } }, state: () => g, coins: (n) => { if (g) g.coins += n; }, screenOf: (p) => toScreen(centerOf(p)) };
 
   const hot = window.claude && window.claude.hot;
   if (hot && hot.snapshot) hot.snapshot(() => ({ best }));
